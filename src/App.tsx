@@ -1,7 +1,9 @@
+import FilterBuilder from "./features/filter-builder/FilterBuilder"
+
 const App = () => {
   return (
     <main>
-      <h1>test</h1>
+      <FilterBuilder />
     </main>
   )
 }
