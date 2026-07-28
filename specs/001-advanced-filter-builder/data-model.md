@@ -21,18 +21,31 @@ Dataset size is fixed at 40 rows (FR-001).
 
 ## Field & Operator
 
-```ts
-type Field = "name" | "country" | "salary" | "isActive" | "hireDate";
+As of the generalization in FR-039/FR-040 (User Story 15, [research.md](./research.md) §23), `Field` and `Operator` are no longer feature-internal string-literal unions — they are `string`, narrowed at each caller's own config:
 
-type Operator =
-  | "contains" | "equals"              // name
-  | "is" | "is_not"                    // country
-  | "gt" | "lt" | "eq"                 // salary
-  | "is_true" | "is_false"             // isActive
-  | "day_is" | "month_is" | "year_is"; // hireDate
+```ts
+type ValueKind = "text" | "number" | "select" | "day" | "month" | "year" | "none";
+
+interface OperatorConfig<TRow> {
+  label: string;
+  valueKind: ValueKind;
+  options?: readonly string[];
+  schema?: ZodTypeAny;                          // absent = always valid (e.g. is_true/is_false)
+  match: (row: TRow, value: unknown) => boolean;
+  describe: (value: unknown) => string;
+}
+
+interface FieldDef<TRow> {
+  label: string;
+  operators: Record<string, OperatorConfig<TRow>>;
+}
+
+type FilterFieldConfig<TRow> = Record<string, FieldDef<TRow>>;
 ```
 
-The valid `Operator[]` per `Field` live in `fieldConfig.ts`, keyed by field; each operator's value-input kind is resolved per-*operator* within that entry (not per-field), because `hireDate`'s three operators each need a different input kind (`day_is` → `"day"`, `month_is` → `"month"`, `year_is` → `"year"`), unlike every other field where one `valueKind` covers all its operators (see [research.md](./research.md) §7). This is still config data, not a second type-level relation, per Constitution VI.
+`FilterCondition.field`/`.operator` are typed `string`, validated at runtime against the caller-supplied `FilterFieldConfig<TRow>`'s own keys (at condition creation, and at URL decode — see [contracts/filter-url-schema.md](./contracts/filter-url-schema.md)) rather than checked against a fixed compile-time union. Each operator's `match`/`describe`/`schema` now live in the config entry itself — the engine (`evaluateNode`, `describeFilter`, `validateConditionValue`) calls whichever it looks up, instead of switching on a hardcoded field/operator name (Constitution VI: behavior in the map, not in branching — see [research.md](./research.md) §23).
+
+**Employee's own instance**: `src/data/employeeFieldConfig.ts` exports `employeeFieldConfig: FilterFieldConfig<Employee>`, the five fields (`name`, `country`, `salary`, `isActive`, `hireDate`) and their operators/`match`/`describe`/`schema`, including the `hireDate` day/month/year string-slicing logic (previously engine-internal, see [research.md](./research.md) §8) now expressed as that field's `match` functions. This is the "Field Configuration" entity from spec.md's Key Entities — one instance of the generic shape, supplied to `FilterBuilder` from outside the feature (FR-040, [research.md](./research.md) §24).
 
 ## FilterCondition
 
@@ -88,13 +101,22 @@ Neither FR-025 (debounce) nor FR-026 (mobile remove-control placement) adds a fi
 - **Debounce (FR-025, mechanism shape FR-027/FR-028)**: whether a condition's edits commit immediately or after a ~300ms pause is a `boolean` fact of its `valueKind` (`text`/`number`/`day`/`year` → debounced; `select`/`month`/`none` → immediate), read from `fieldConfig.ts`. The in-progress keystroke value lives inside a single debounce hook (relocated to `src/hooks/useDebouncedCommit.ts`, see the Condition-row and shared-hook section below) until committed via `onChange`; the committed `FilterCondition.value` itself is unaffected (see [research.md](./research.md) §13, §15, §19).
 - **Mobile placement (FR-026)**: the remove control's position is a Tailwind responsive class on the same grid described in §12 of research.md — a pure CSS breakpoint change with no new prop or state (see [research.md](./research.md) §14).
 
-## Condition-row hook and shared debounce hook (behavior, not stored state — FR-029–FR-034, User Stories 10-13)
+## Condition-row hook and shared debounce hook (behavior, not stored state — FR-029–FR-034, FR-042–FR-043, User Stories 10-13, 17)
 
 None of these add a field to `FilterCondition`/`FilterGroup` or change any wire shape — they restructure where existing logic lives:
 - **`useConditionRow(condition, onChange)`** (FR-029/FR-030, [research.md](./research.md) §16) returns `{ config, valueKind, displayValue, validation, handleFieldChange, handleOperatorChange, handleValueChange }`. `FilterCondition.tsx` calls this once and renders only from its return value — no field/operator/value computation of its own.
 - **`ValueInput`** (FR-031, [research.md](./research.md) §17) is a `Record<ValueKind, Component>` lookup already implemented in `ValueInput.tsx`; `useConditionRow`'s `valueKind` is the key `FilterCondition.tsx` passes to it.
 - **`useDebouncedCommit`** (FR-034, [research.md](./research.md) §19) is the same hook as `useDebouncedValue` (FR-027), relocated to `src/hooks/useDebouncedCommit.ts` and exported from `src/hooks/index.ts` — a second module boundary (Constitution VIII) alongside `filter-builder/index.ts`. Its signature (`(value, onCommit, delayMs) → [localValue, setLocalValue]`) carries no filter/condition concept, so any feature can call it directly.
+- **Wrapped-handler simplification** (FR-042/FR-043, [research.md](./research.md) §26): `handleValueChange` and `displayValue` no longer branch on a `boolean` "is this valueKind debounced" fact. `useConditionRow` calls `useDebouncedCommit(condition.value, commit, debounceMsForValueKind(valueKind))` unconditionally — `debounceMsForValueKind` (in `fieldConfig.ts`) returns `700` for `text`/`number`/`day`/`year` and `0` for `select`/`month`/`none` — and both `handleValueChange` (→ the hook's own `setLocalValue`) and `displayValue` (→ the hook's own `localValue`) are the identical call/value for every value kind.
 - **`describeMatchCount(count: number): string`** (FR-032, [research.md](./research.md) §18) is a new plain function in `filterEngine.ts`, alongside the existing `describeFilter`. `FilterBuilder.tsx` calls it instead of formatting the pluralized match-count text itself.
+
+## Generic field configuration and dataset (behavior/type shape, not new stored state — FR-039–FR-041, FR-044, User Stories 15-16, 18)
+
+Not a new entity beyond the `Field Configuration` shape already introduced above — this section records where it moves the *rest* of the feature:
+- `evaluateNode`, `describeFilter`, `describeMatchCount`, `createEmptyFilter` (`filterEngine.ts`) and `validateConditionValue` (`validation.ts`) become generic over `TRow`, taking `fieldConfig: FilterFieldConfig<TRow>` as a parameter instead of importing a hardcoded Employee-specific map (FR-039, [research.md](./research.md) §23).
+- `FilterBuilder` becomes generic: `FilterBuilder<TRow>(props: { fieldConfig: FilterFieldConfig<TRow>; data: TRow[]; children: (matchingRows: TRow[]) => ReactNode })`. It owns `useFilterUrlSync(fieldConfig)`, the root `FilterGroup` editor, the sentence/match-count text, and the "Clear All" button — all field-config-driven and Employee-agnostic — and hands the caller-rendered rows to `children` for display (FR-032's pure-composition rule still holds: `FilterBuilder.tsx` still contains no logic beyond composing hooks/engine calls and invoking the callback it's given).
+- `src/data/employeeFieldConfig.ts`, `src/data/EmployeeTable.tsx` (relocated from `filter-builder/`), and `src/data/format.ts` (relocated from `filter-builder/`) hold everything Employee-specific; `App.tsx` wires them together (FR-040, [research.md](./research.md) §24).
+- Inside `filter-builder/`, hook files live under `hooks/` and component files under `components/`, each with its own `index.ts` that every cross-subfolder import (including the feature's own top-level `index.ts`) goes through (FR-041/FR-044, [research.md](./research.md) §25, §27).
 
 ## Clear All (behavior, not stored state — FR-036/FR-037, User Story 14)
 
@@ -106,7 +128,7 @@ Not a new entity or field: every interactive element already in the tree (add/re
 
 ## URL-encoded representation
 
-Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. A condition currently failing validation (see FilterCondition's validation rule above) is dropped from the tree immediately before encoding — it never appears in the URL until corrected (FR-013, clarified 2026-07-28). See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
+Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. A condition currently failing validation (see FilterCondition's validation rule above) is dropped from the tree immediately before encoding — it never appears in the URL until corrected (FR-013, clarified 2026-07-28). `decodeFilterFromParam` now takes the caller's `FilterFieldConfig<TRow>` as a parameter and validates a decoded condition's `field`/`operator` against that config's own keys, rather than a hardcoded Employee field/operator list (FR-039, [research.md](./research.md) §23) — the wire shape itself (field names as strings, operator names as strings) is unchanged. See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
 
 ## State transitions
 

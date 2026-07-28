@@ -77,7 +77,7 @@ A condition whose value currently fails the field/operator's Zod validation (FR-
    - Root must be an object with `kind === "group"`, `logic` one of `"AND"/"OR"`, `children` an array.
    - Every child must be a condition or a group, per the discriminant `kind`.
    - A group nested inside another nested group (depth > 2) is invalid — the root may hold any number of nested groups (2026-07-28 Amendment), but a nested group's own `children` must contain only conditions, never a group.
-   - Every condition's `field` must be a known `Field`, and its `operator` must be in that field's valid operator list from `fieldConfig.ts`.
+   - Every condition's `field` must be a key present in the caller-supplied `FilterFieldConfig<TRow>` passed into `decodeFilterFromParam(raw, fieldConfig)`, and its `operator` must be a key present in that field's `operators` map (FR-039, [research.md](../research.md) §23) — no longer a hardcoded Employee field/operator list; the Employee page passes `employeeFieldConfig` (`src/data/employeeFieldConfig.ts`) for this check.
    - Any structural mismatch at any depth → return `null` for the **whole tree** (no partial/best-effort reconstruction — FR-015 explicitly rejects a "partial/incorrect filter").
 4. On success, return the validated, typed `FilterGroup` (ids may be reused as-is or regenerated).
 

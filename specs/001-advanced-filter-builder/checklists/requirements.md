@@ -92,3 +92,17 @@
   live/spoken announcements required for dynamic changes. This was raised as a clarification
   question (the spec previously said nothing about accessibility) and resolved to "basic support"
   rather than left unaddressed. All checklist items still pass after the update.
+- 2026-07-28 update (Amendment 3): added generic reusability (User Story 15, FR-039/FR-040,
+  SC-019), file-by-kind organization into `hooks`/`components` subfolders (User Story 16,
+  FR-041), a simplified single generic debounce wrapper for `useConditionRow` (User Story 17,
+  FR-042/FR-043, SC-021), and per-subfolder public-API imports (User Story 18, FR-044, SC-020,
+  SC-022). The reusability scope had two materially different readings (generalize the API shape
+  only, vs. also build a second live example table) so it was raised as a single clarification via
+  the interactive question tool; the answer ("architecture-only," no second example table) is
+  recorded under "Session 2026-07-28 (Amendment 3)" in Clarifications and as an Assumption. The
+  remaining items (folder-by-kind, debounce-wrapper simplification, per-folder barrel imports) had
+  reasonable defaults and needed no clarification. Continuing this spec's established precedent
+  (FR-027, FR-029-FR-035) of naming specific code constructs (`useConditionRow`, hook/component
+  subfolder names) as deliberate, narrow implementation hints for a maintainability-focused
+  developer story, rather than a gap in "no implementation details." All checklist items still
+  pass after the update.
