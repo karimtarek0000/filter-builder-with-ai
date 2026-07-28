@@ -1,4 +1,4 @@
-import type { Employee } from '../../data/employees'
+import type { Employee } from './employees'
 import { formatHireDate, formatSalary } from './format'
 
 interface EmployeeTableProps {
