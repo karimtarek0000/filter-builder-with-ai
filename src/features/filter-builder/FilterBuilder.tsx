@@ -1,8 +1,8 @@
 import { employees } from '../../data/employees'
 import EmployeeTable from './EmployeeTable'
-import { createEmptyFilter, describeFilter, describeMatchCount, filterEmployees } from './filterEngine'
+import { describeFilter, describeMatchCount, filterEmployees } from './filterEngine'
 import FilterGroup from './FilterGroup'
-import { useFilterUrlSync } from './useFilterUrlSync'
+import { createEmptyRoot, useFilterUrlSync } from './useFilterUrlSync'
 
 const FilterBuilder = () => {
   const [root, setRoot] = useFilterUrlSync()
@@ -17,7 +17,7 @@ const FilterBuilder = () => {
           type="button"
           className="border border-gray-400 px-2 py-1"
           aria-label="Clear all filters"
-          onClick={() => setRoot(createEmptyFilter())}
+          onClick={() => setRoot(createEmptyRoot())}
         >
           Clear All
         </button>

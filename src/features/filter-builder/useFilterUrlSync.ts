@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FilterGroup } from './types'
 import { decodeFilterFromParam, encodeFilterToParam } from './urlState'
 
-const createEmptyRoot = (): FilterGroup => ({
+export const createEmptyRoot = (): FilterGroup => ({
   id: crypto.randomUUID(),
   kind: 'group',
   logic: 'AND',
