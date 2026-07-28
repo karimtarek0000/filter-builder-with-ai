@@ -67,10 +67,11 @@ A container of children (FR-006).
 type FilterNode = FilterCondition | FilterGroup;
 ```
 
-**Depth rule (FR-007/FR-008)**: enforced structurally, not just by convention:
-- The **root** `FilterGroup`'s `children` may contain any number of `FilterCondition`s and **at most one** `FilterGroup` (the "nested group").
-- A **nested** `FilterGroup`'s `children` may contain only `FilterCondition`s — never another `FilterGroup`. This is what makes "no add-group control inside a nested group" (Acceptance Scenario, Story 3 #2) trivially true: the UI simply never renders that control when rendering a group that is not the root.
-- This asymmetry (root vs. nested capabilities) is why `FilterGroup` is one type with a runtime-enforced rule rather than two type-level variants — introducing `RootFilterGroup`/`NestedFilterGroup` types would be a second implementation with no second consumer beyond this one rule (Constitution VI: no interface without a second implementation).
+**Depth rule (FR-007/FR-008, revised 2026-07-28 — root nested-group count is now unbounded)**: enforced structurally, not just by convention:
+- The **root** `FilterGroup`'s `children` may contain any number of `FilterCondition`s and **any number** of `FilterGroup`s (nested groups) — the earlier "at most one nested group" cap is superseded (2026-07-28 Amendment); only the *depth* stays capped at two levels, not the *count* of nested groups.
+- A **nested** `FilterGroup`'s `children` may contain only `FilterCondition`s — never another `FilterGroup`. This is what makes "no add-group control inside a nested group" (Acceptance Scenario, Story 3 #3) trivially true: the UI simply never renders that control when rendering a group that is not the root, regardless of how many nested groups already exist at the root (Story 3 #2).
+- This asymmetry (root vs. nested capabilities) is why `FilterGroup` is one type with a runtime-enforced rule rather than two type-level variants — introducing `RootFilterGroup`/`NestedFilterGroup` types would be a second implementation with no second consumer beyond this one rule (Constitution VI: no interface without a second implementation). Removing the "at most one" count cap only loosens that runtime rule; it does not add a new type-level relation (see [research.md](./research.md) §21).
+- Every nested group combines with its siblings and with the root group's own conditions via the root's single `logic` (AND/OR) setting — there is no separate combinator between nested groups (spec.md Assumptions).
 - An empty `children` array (root or nested) is valid and vacuously satisfied — it doesn't narrow the result set (Edge Cases, Assumptions).
 
 ## Filter tree evaluation (behavior, not a stored entity)
@@ -95,6 +96,14 @@ None of these add a field to `FilterCondition`/`FilterGroup` or change any wire 
 - **`useDebouncedCommit`** (FR-034, [research.md](./research.md) §19) is the same hook as `useDebouncedValue` (FR-027), relocated to `src/hooks/useDebouncedCommit.ts` and exported from `src/hooks/index.ts` — a second module boundary (Constitution VIII) alongside `filter-builder/index.ts`. Its signature (`(value, onCommit, delayMs) → [localValue, setLocalValue]`) carries no filter/condition concept, so any feature can call it directly.
 - **`describeMatchCount(count: number): string`** (FR-032, [research.md](./research.md) §18) is a new plain function in `filterEngine.ts`, alongside the existing `describeFilter`. `FilterBuilder.tsx` calls it instead of formatting the pluralized match-count text itself.
 
+## Clear All (behavior, not stored state — FR-036/FR-037, User Story 14)
+
+Not a new entity or field: `createEmptyFilter(): FilterGroup` (a new plain function in `filterEngine.ts`, see [research.md](./research.md) §20) returns the same empty-root shape already used when the feature initializes (`{ id, kind: "group", logic: "AND", children: [] }`). "Clear All" replaces the current tree with a freshly-created one via the same state-update path every other edit already uses — no distinct action/state is introduced, and no confirmation step or dialog exists (spec.md Assumptions).
+
+## Accessibility (behavior, not stored state — FR-038, SC-018)
+
+Not a new entity or field: every interactive element already in the tree (add/remove condition, add/remove group, field/operator/value inputs, the AND/OR toggle, Clear All) is a native HTML control, keyboard-operable by default, and carries a `<label>` or `aria-label` (see [research.md](./research.md) §22). No `aria-live` region is added — dynamic-change announcements are explicitly out of scope for FR-038.
+
 ## URL-encoded representation
 
 Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. A condition currently failing validation (see FilterCondition's validation rule above) is dropped from the tree immediately before encoding — it never appears in the URL until corrected (FR-013, clarified 2026-07-28). See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
@@ -109,9 +118,11 @@ empty root (children: [])
   → edit condition field/op/value   (FR-005)
   → add second condition      (FR-009)
   → toggle group AND/OR       (FR-006)
-  → add nested group (root only, only if none exists)  (FR-007)
-  → add/edit/remove conditions inside nested group      (FR-009/FR-010)
+  → add nested group (root only, any number)  (FR-007)
+  → add another nested group alongside the first (root only)  (FR-007)
+  → add/edit/remove conditions inside a nested group      (FR-009/FR-010)
   → remove condition or group (removes subtree)          (FR-010)
+  → Clear All → back to empty root (children: [])         (FR-036/FR-037)
 ```
 
 Every transition is followed by: re-evaluate → update table + count (FR-011) → regenerate sentence (FR-012) → re-encode URL via `replaceState` (FR-013).

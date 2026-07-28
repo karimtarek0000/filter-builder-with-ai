@@ -76,3 +76,19 @@
   enhancement suggestions (consolidating field-driven logic, an import-boundary lint rule) are
   recorded in Assumptions as non-required suggestions per the user's explicit invitation to
   propose them. All checklist items still pass after the update.
+- 2026-07-28 update: added a "Clear All" control (User Story 14, FR-036/FR-037, SC-017, a new
+  edge case) and relaxed the root group's nesting cap from "exactly one nested group" to "any
+  number of nested groups," while keeping the tree at two levels total (User Story 3 revised,
+  FR-007/FR-008 revised, Key Entities revised, two new edge cases). The nesting-cap question had
+  two materially different readings (allow multiple flat nested groups vs. unlimited recursive
+  depth) so it was raised as a single clarification via the interactive question tool rather than
+  guessed; the answer (multiple nested groups, still two levels) is recorded under "Session
+  2026-07-28 (Amendment)" in Clarifications, explicitly superseding the original 2026-07-27
+  "exactly one nested group" answer. "Clear All" needed no clarification — a single always-visible
+  control with no confirmation step is recorded as a documented Assumption, consistent with the
+  low cost/reversibility of the action. All checklist items still pass after the update.
+- 2026-07-28 update: added an accessibility requirement (FR-038, SC-018) — every filter-builder
+  control must be keyboard-operable and carry a clear label for assistive technology, with no
+  live/spoken announcements required for dynamic changes. This was raised as a clarification
+  question (the spec previously said nothing about accessibility) and resolved to "basic support"
+  rather than left unaddressed. All checklist items still pass after the update.

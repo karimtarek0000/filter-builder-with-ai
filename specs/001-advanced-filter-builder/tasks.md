@@ -11,12 +11,12 @@ description: "Task list for Advanced Filter Builder"
 
 **Tests**: No test runner is configured in this project (see plan.md → Technical Context → Testing). No test tasks are included; each user story instead references its manual repro steps in [quickstart.md](./quickstart.md), per the constitution's "manual repro step instead" rule.
 
-**Organization**: Tasks are grouped by user story (spec.md priorities P1–P13) so each story is independently implementable and testable.
+**Organization**: Tasks are grouped by user story (spec.md priorities P1–P14) so each story is independently implementable and testable.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: Maps the task to US1–US13 from spec.md
+- **[Story]**: Maps the task to US1–US14 from spec.md
 - File paths are exact, per plan.md's Project Structure
 
 ## Path Conventions
@@ -29,6 +29,15 @@ Phases 1-11 (User Stories 1-8) below were generated and completed against an ear
 
 - `src/features/filter-builder/ValueInput.tsx` and `src/features/filter-builder/index.ts` already exist and already satisfy most of User Story 10 (value-kind lookup map) and User Story 12 (module entry point) — their tasks below are phrased as verification, not creation.
 - `src/features/filter-builder/filterEngine.ts` currently has **no** `describeFilter` function and `FilterBuilder.tsx` renders no plain-language sentence at all, even though Phase 5 (User Story 3, T014) is marked complete and research.md §18 assumes `describeFilter` already exists as `describeMatchCount`'s sibling. This looks like a pre-existing gap (FR-012) unrelated to Stories 9-13 — flagged in T053 below rather than silently folded into Story 11's scope.
+
+## Status Note (2026-07-28, second update)
+
+spec.md/plan.md picked up two amendments since Phase 17 was completed: Story 3's nested-group cap relaxed from "at most one" to "any number" (FR-007/FR-008 revised), a new Story 14 "Clear All" (FR-036/FR-037), and a new cross-cutting accessibility requirement (FR-038/SC-018). A codebase check while generating Phases 18-20 below confirmed the T053 gap flagged above was never resolved and found further drift from what Phases 1-17 claim as complete:
+
+- `src/features/filter-builder/filterEngine.ts` still has no `describeFilter` — `FilterBuilder.tsx` renders a static `"Showing all employees (…)"` string, not a derived sentence. This directly blocks Story 3 (revised) Scenario 4, so Phase 18 below implements it rather than deferring further.
+- `src/features/filter-builder/FilterGroup.tsx`'s "Add group" button is still gated by `isRoot && !hasNestedGroup`, i.e. it still enforces the superseded "at most one nested group" rule.
+- No "Clear All" control exists anywhere in the codebase.
+- No control in `FilterCondition.tsx`, `ValueInput.tsx`, or `FilterGroup.tsx` carries an `aria-label` or associated `<label>` beyond its own visible button text (e.g. the field/operator `<select>`s and every value-input control are unlabeled).
 
 ---
 
@@ -114,7 +123,7 @@ Phases 1-11 (User Stories 1-8) below were generated and completed against an ear
 ### Implementation for User Story 4
 
 - [X] T015 [US4] Create `src/features/filter-builder/urlState.ts` with `encodeFilterToParam(root)`: `JSON.stringify` → base64-encode → URL-safe substitution (`+`→`-`, `/`→`_`, strip `=` padding), per contracts/filter-url-schema.md → Encoding rule (depends on T003)
-- [X] T016 [US4] Add `decodeFilterFromParam(raw)` to `urlState.ts`: reverse the URL-safe substitution, base64-decode, `JSON.parse` on an `unknown` value, then structurally validate against `fieldConfig` (unknown field/operator, depth > 2, more than one root-level nested group, or any shape mismatch → return `null` for the whole tree); never throws — per contracts/filter-url-schema.md → Decoding rule, research.md §5, implements FR-015 (depends on T015, T004)
+- [X] T016 [US4] Add `decodeFilterFromParam(raw)` to `urlState.ts`: reverse the URL-safe substitution, base64-decode, `JSON.parse` on an `unknown` value, then structurally validate against `fieldConfig` (unknown field/operator, a group nested inside another nested group (depth > 2), or any shape mismatch → return `null` for the whole tree); never throws — per contracts/filter-url-schema.md → Decoding rule, research.md §5, implements FR-015 (depends on T015, T004). **2026-07-28 correction**: this task's original wording ("more than one root-level nested group... → return null") encoded the pre-amendment single-nested-group cap; Phase 18 relaxed FR-007/FR-008 to allow any number of root-level nested groups but never revisited this task or its implementation, leaving `decodeFilterFromParam` rejecting (and silently discarding) any URL with 2+ nested groups — including ones `encodeFilterToParam` itself produces, violating FR-014/SC-004. Fixed directly in `urlState.ts`'s `parseGroup`: the nested-group *count* check is removed, the depth (`!== 1`) check — the still-valid "no third level" rule — is kept.
 - [X] T017 [US4] Create `src/features/filter-builder/useFilterUrlSync.ts`: on mount, read `window.location.search`, call `decodeFilterFromParam`, and expose the result (or an empty root group on `null`) as initial filter state; on every filter-tree change, call `encodeFilterToParam` and apply it with `window.history.replaceState` (never `pushState`) — per research.md §4, implements FR-013, FR-014 (depends on T016)
 - [X] T018 [US4] Wire `useFilterUrlSync` into `src/features/filter-builder/FilterBuilder.tsx`, replacing the plain `useState` initializer from T009 with the hook's initial value and change-sync behavior — implements FR-013–FR-015 (depends on T017, T009)
 
@@ -296,6 +305,65 @@ Phases 1-11 (User Stories 1-8) below were generated and completed against an ear
 
 ---
 
+## Phase 18: User Story 3 (Revised) - Multiple nested groups + plain-language sentence (Priority: P3)
+
+**Goal**: The root group's "Add group" control stays available after any number of nested groups already exist (the 2026-07-27 "exactly one" cap is superseded), and the plain-language sentence (FR-012) — required to read Scenario 4's combined logic and never actually implemented despite being marked complete in Phase 5 — exists and is rendered above the table.
+
+**Independent Test**: Add a nested group, then add a second independent nested group alongside it, confirm the "add group" control remains available at the root and unavailable inside either nested group, and confirm the sentence above the table correctly states the combined AND/OR logic across the root condition and both nested groups — see [quickstart.md](./quickstart.md) → Story 3.
+
+### Implementation for User Story 3 (Revised)
+
+- [X] T064 [US3] Remove the `!hasNestedGroup` restriction from the "Add group" control's gating in `src/features/filter-builder/FilterGroup.tsx` (currently `isRoot && !hasNestedGroup`) so it renders whenever `isRoot` is true, unconditionally, allowing any number of sibling nested groups at the root; delete the now-unused `hasNestedGroup` local — per research.md §21, implements FR-007 (revised), FR-008, Story 3 Scenario 2 (depends on existing `FilterGroup.tsx`)
+- [X] T065 [US3] Add `describeFilter(node: FilterNode): string` to `src/features/filter-builder/filterEngine.ts`: for a condition, call `fieldConfig[condition.field].describe(condition.operator, condition.value)`; for a group, join its children's descriptions with `" and "`/`" or "` per the group's `logic`, parenthesizing a nested group's joined phrase, and returning a fixed placeholder (e.g. `"No filter applied"`) when the root has no children — per research.md §6, implements FR-012 (this function does not currently exist in the codebase, despite being flagged as a gap in the Status Note above and assumed to exist by research.md §18's `describeMatchCount`) (depends on existing `filterEngine.ts`, `fieldConfig.ts`'s per-field `describe`)
+- [X] T066 [US3] Wire `describeFilter(root)` into `src/features/filter-builder/FilterBuilder.tsx`, replacing the static `"Showing all employees (…)"` text with the derived sentence rendered above the table (still composed alongside `describeMatchCount`, not merged into one string) — implements FR-012, FR-032 (pure composition — no formatting logic inline in `FilterBuilder.tsx`) (depends on T065)
+- [X] T067 [US3] Validate per [quickstart.md](./quickstart.md) → Story 3: add a second nested group alongside the first and confirm both combine independently with the root and each other, with "add group" still available at the root (Scenario 2); confirm no "add group" control appears inside either nested group (Scenario 3); confirm the sentence correctly states the combined AND/OR logic across the root condition and every nested group (Scenario 4) (depends on T064, T066)
+
+**Checkpoint**: The root group supports any number of nested groups, and the plain-language sentence (FR-012) is implemented and visible.
+
+---
+
+## Phase 19: User Story 14 - Clear the entire filter in one action (Priority: P14)
+
+**Goal**: One always-visible "Clear All" control resets the whole tree — every condition in the root group, every nested group, and every condition within each nested group — back to a single empty root group in one action, with no confirmation step, immediately updating rows/count/sentence/URL; clicking it when the filter is already empty is a no-op.
+
+**Independent Test**: Build a filter with multiple root-level conditions and at least one nested group, click "Clear All", and confirm the table returns to showing all employees with an empty root group and no nested groups remaining — see [quickstart.md](./quickstart.md) → Story 14.
+
+### Implementation for User Story 14
+
+- [X] T068 [US14] Add `createEmptyFilter(): FilterGroup` to `src/features/filter-builder/filterEngine.ts`, returning `{ id: crypto.randomUUID(), kind: "group", logic: "AND", children: [] }` — the same shape used to seed a freshly-created group elsewhere in the module — per research.md §20, implements FR-036 (depends on existing `filterEngine.ts`)
+- [X] T069 [US14] Add an always-visible "Clear All" `<button>` to `src/features/filter-builder/FilterBuilder.tsx`, wired to call the existing `setRoot` (from `useFilterUrlSync`) with `createEmptyFilter()` — the same state-update path every other edit already goes through, so rows/count/sentence/URL update immediately with no new effect or state; give it `aria-label="Clear all filters"` — per research.md §20, implements FR-036, FR-037, FR-038 (depends on T068)
+- [X] T070 [US14] Validate per [quickstart.md](./quickstart.md) → Story 14: build a filter with at least two root-level conditions and two nested groups, click Clear All, confirm every condition/group is removed, all 40 rows show, the match count reflects the full dataset, the sentence reflects an empty filter, and the URL's `f` parameter no longer encodes any conditions, with no confirmation prompt (Scenarios 1-2); click Clear All again on an already-empty filter and confirm no visible change and no error (Scenario 3) (depends on T069)
+
+**Checkpoint**: All fourteen user stories are independently functional.
+
+---
+
+## Phase 20: Accessibility hardening (FR-038, SC-018)
+
+**Purpose**: Every interactive control in the filter builder — add/remove condition, add/remove group, field/operator/value inputs, the AND/OR toggle, and Clear All — is operable via keyboard alone (already true for free: every control is a native `<button>`/`<select>`/`<input>`, per research.md §22) and carries a clear, programmatic label for assistive technology (not yet true for most controls). No live/spoken announcements of dynamic changes are required or added (FR-038 explicitly excludes them).
+
+**Independent Test**: Using only the keyboard, add a condition, add a nested group, remove a condition, toggle a group's AND/OR, edit a value, and use Clear All; then inspect every control in the browser's accessibility tree and confirm each has a non-empty accessible name — see [quickstart.md](./quickstart.md) → Accessibility spot-check.
+
+### Implementation for Accessibility
+
+- [X] T071 [P] Add `aria-label`s to `src/features/filter-builder/FilterCondition.tsx`'s field `<select>` (e.g. `"Field"`) and operator `<select>` (e.g. `"Operator"`), and to each control in `src/features/filter-builder/ValueInput.tsx` (`TextInput`, `NumberInput`, `NumericInput`, `SelectInput`, `MonthInput`, e.g. `"Value"`) — per research.md §22, implements FR-038 (depends on existing `FilterCondition.tsx`, `ValueInput.tsx`)
+- [X] T072 [P] Add a distinct `aria-label` (e.g. `"Remove condition"`) to `FilterCondition.tsx`'s "Remove" button so it reads unambiguously to a screen reader outside the visual context of its row — implements FR-038 (depends on existing `FilterCondition.tsx`)
+- [X] T073 [P] Add `aria-label`s to `src/features/filter-builder/FilterGroup.tsx`'s AND/OR toggle button (e.g. `` `Group logic: ${group.logic}, click to toggle` ``), "Remove group" button (e.g. `"Remove nested group"`), "Add condition" button (e.g. `"Add condition"`), and "Add group" button (e.g. `"Add nested group"`) — per research.md §22, implements FR-038 (depends on existing `FilterGroup.tsx`)
+- [X] T074 Validate per [quickstart.md](./quickstart.md) → Accessibility spot-check: using only the keyboard (Tab/Shift+Tab, Enter/Space, arrow keys inside a `<select>`), add a condition, add a nested group, remove a condition, toggle a group's AND/OR, edit a value, and click Clear All (SC-018); inspect every select/input/button in the browser's accessibility tree and confirm each has a non-empty accessible name (SC-018) (depends on T071, T072, T073, T069)
+
+**Checkpoint**: Every control in the filter builder is keyboard-operable with a programmatic label.
+
+---
+
+## Phase 21: Polish & Cross-Cutting Concerns (User Story 3 revision, User Story 14, Accessibility)
+
+**Purpose**: Repo-wide quality gates and full manual validation after the 2026-07-28 amendments.
+
+- [X] T075 [P] Run `npm run build` (type-check + production build) and `npm run lint` after the Phase 18-20 changes; fix any errors surfaced, per CLAUDE.md's quality gates
+- [X] T076 Re-run the complete [quickstart.md](./quickstart.md) walkthrough end-to-end — all 14 stories, the accessibility spot-check, the zero-match edge case, and the back-button regression watch — and confirm every expectation still holds
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -317,8 +385,12 @@ Phases 1-11 (User Stories 1-8) below were generated and completed against an ear
 - **User Story 12 (Phase 15)**: Depends on the existing `filter-builder/index.ts`; independent of US9-US11's own changes
 - **User Story 13 (Phase 16)**: Depends on User Story 9 (T047's re-sync fix, relocated in T058) and User Story 10 (`useConditionRow.ts` from T049, updated in T060)
 - **Polish (Phase 17)**: Depends on User Stories 9-13
+- **User Story 3 Revised (Phase 18)**: Depends on the existing `FilterGroup.tsx` (T012) and `filterEngine.ts`/`fieldConfig.ts` (T005, T004); independent of US9-US13
+- **User Story 14 (Phase 19)**: Depends on the existing `filterEngine.ts` and `FilterBuilder.tsx`/`useFilterUrlSync.ts` (T009, T017-T018); independent of Phase 18's own changes
+- **Accessibility (Phase 20)**: Depends on the existing `FilterCondition.tsx`, `ValueInput.tsx`, `FilterGroup.tsx`, and Phase 19's Clear All button (T069, for its own `aria-label`)
+- **Polish (Phase 21)**: Depends on Phases 18-20
 
-Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above. The same is true of US9–US13: each is a maintainability refactor of files already built by US1/US6/US7, not a disjoint file set.
+Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above. The same is true of US9–US13: each is a maintainability refactor of files already built by US1/US6/US7, not a disjoint file set. Phases 18-20 follow the same pattern: Phase 18 revises `FilterGroup.tsx`'s existing gating rule and finally implements the long-flagged `describeFilter` gap, Phase 19 adds one function plus one button to already-existing files, and Phase 20 only adds `aria-label` attributes to controls that already exist.
 
 ### Within Each Phase
 
@@ -336,6 +408,9 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US11: T053 needs the existing `filterEngine.ts`; T054 needs T053; T055 needs T054
 - US12: T056 needs the existing `index.ts`; T057 needs T056
 - US13: T058 needs T047; T059 needs T058; T060 needs T059 and T049; T061 needs T060
+- US3 (revised): T064 needs the existing `FilterGroup.tsx`; T065 needs the existing `filterEngine.ts`/`fieldConfig.ts` (parallel with T064); T066 needs T065; T067 needs T064 and T066
+- US14: T068 needs the existing `filterEngine.ts`; T069 needs T068; T070 needs T069
+- Accessibility: T071, T072, T073 are independent of each other; T074 needs T071, T072, T073, and T069
 
 ### Parallel Opportunities
 
@@ -346,6 +421,9 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US7: T034 (`format.ts`), T036 (`FilterCondition.tsx` grid), and T037 (`FilterGroup.tsx` border) touch three different files and can all run in parallel; T035 needs T034 first
 - Polish (Phase 17): T062 is marked [P] (independent of T063)
 - No other tasks in Phases 12-16 are marked [P] — each user story's tasks are a sequence of edits to the same one or two files
+- US3 (revised): T064 (`FilterGroup.tsx`) and T065 (`filterEngine.ts`) touch different files and can run in parallel
+- Accessibility (Phase 20): T071 (`FilterCondition.tsx`/`ValueInput.tsx`), T072 (`FilterCondition.tsx`'s Remove button), and T073 (`FilterGroup.tsx`) can all run in parallel
+- Polish (Phase 21): T075 is marked [P] (independent of T076)
 
 ---
 
@@ -385,6 +463,14 @@ Task: "Apply a fixed-width Tailwind grid to src/features/filter-builder/FilterCo
 Task: "Add a left border + indentation for nested groups in src/features/filter-builder/FilterGroup.tsx"
 ```
 
+## Parallel Example: Accessibility (Phase 20)
+
+```bash
+Task: "Add aria-labels to FilterCondition.tsx's field/operator selects and ValueInput.tsx's value controls"
+Task: "Add an aria-label to FilterCondition.tsx's Remove button"
+Task: "Add aria-labels to FilterGroup.tsx's AND/OR toggle, Remove group, Add condition, and Add group buttons"
+```
+
 ---
 
 ## Implementation Strategy
@@ -416,16 +502,21 @@ Task: "Add a left border + indentation for nested groups in src/features/filter-
 15. User Story 12 → audit the feature's single entry point → validate import boundaries → demo (code-review only)
 16. User Story 13 → relocate the debounce hook to `src/hooks/` → validate reusability + no regression → demo
 17. Polish → build/lint clean, full quickstart pass (Stories 1-13)
+18. User Story 3 (revised) → allow any number of nested groups + implement the long-missing `describeFilter` sentence → validate combined-logic sentence → demo
+19. User Story 14 → add Clear All → validate full-reset + no-op-when-empty → demo
+20. Accessibility → add `aria-label`s across all existing controls → validate keyboard-only + accessible-name spot-check → demo
+21. Polish → build/lint clean, full quickstart pass (Stories 1-14 + accessibility)
 
 ---
 
 ## Notes
 
 - [P] tasks touch different files with no dependency on an incomplete task
-- [Story] labels map tasks to spec.md's US1–US13 for traceability
+- [Story] labels map tasks to spec.md's US1–US14 for traceability
 - No test runner is configured; every story's independent test is a manual quickstart.md walkthrough instead of automated tests
 - Stories 9-11 and 12 are read-the-code / audit-only user stories — their "Independent Test" is a code review plus a browser regression check, not new user-visible behavior
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently before moving on
-- Before starting Phase 13 (US10), resolve T053's flagged question about the missing `describeFilter`/FR-012 sentence — it affects how confidently `FilterBuilder.tsx` can be called "pure composition" in Phase 14 (US11)
+- T053's flagged question about the missing `describeFilter`/FR-012 sentence was never resolved during Phases 13-17 (confirmed still missing when generating Phase 18) — Phase 18 (T065) now implements it directly, since Story 3 (revised)'s Scenario 4 makes it a hard blocker rather than an optional follow-up
+- Phase 20 (Accessibility) has no dedicated user story number in spec.md — FR-038/SC-018 are a cross-cutting constraint introduced by the 2026-07-28 Amendment 2, so its tasks carry no `[Story]` label, consistent with the Setup/Foundational/Polish phases above
 </content>

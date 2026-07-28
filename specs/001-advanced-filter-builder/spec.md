@@ -25,6 +25,15 @@
 - Q: Should a condition with a currently-invalid value (FR-021/FR-022) still be written into the URL-encoded filter tree? → A: No — a condition currently failing validation must not update/appear in the URL; the URL only ever encodes conditions currently valid and applied to the filter.
 - Q: For a debounced field (salary, name, hireDate day/year), should the inline validation error appear immediately on every keystroke, or only after the debounce pause used for filter re-evaluation? → A: Show error immediately per keystroke — validation runs and displays on every keystroke, independent of the debounce delay used for filter re-evaluation.
 
+### Session 2026-07-28 (Amendment)
+
+- Q: Should the root group's cap of "exactly one nested group" (set in the 2026-07-27 session) be relaxed to allow more than one nested group, and if so, does nesting depth stay at two levels or become unlimited? → A: Multiple nested groups allowed inside the root, but the tree stays at exactly two levels — each nested group remains flat (holds only conditions, no groups of its own). This supersedes the earlier "exactly one nested group" answer; the "no third level" rule from that answer still applies unchanged.
+- Q: Should a "Clear All" control be added, and what does it clear? → A: Yes — a single control that resets the entire filter (every condition, in the root group and in every nested group, plus the nested groups themselves) back to the initial empty state, with no confirmation prompt.
+
+### Session 2026-07-28 (Amendment 2)
+
+- Q: Should the filter builder support accessibility (keyboard use, screen reader labels)? → A: Basic support — every control (add/remove condition, add/remove group, field/operator/value inputs, Clear All) must be usable with the keyboard alone and must have a clear label for screen readers. No spoken/live announcements for dynamic changes (e.g., a new match count or a new inline error) are required.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Filter the table with a single rule (Priority: P1)
@@ -61,20 +70,21 @@ A user wants to combine more than one rule — for example, "country is EG AND s
 
 ---
 
-### User Story 3 - Nest a group for more complex logic (Priority: P3)
+### User Story 3 - Nest one or more groups for more complex logic (Priority: P3)
 
-A user wants logic that a single flat group can't express, such as "country is EG AND (salary greater than 8000 OR isActive is true)," by nesting a group inside the root group.
+A user wants logic that a single flat group can't express, such as "country is EG AND (salary greater than 8000 OR isActive is true)," by nesting a group inside the root group — and can add further nested groups (e.g., a second "(region is X OR region is Y)" group) alongside the first when the logic calls for it.
 
-**Why this priority**: This is the most advanced authoring capability and depends on Stories 1 and 2 already working. It delivers the "one extra level of power" the feature promises while staying deliberately bounded (two levels only).
+**Why this priority**: This is the most advanced authoring capability and depends on Stories 1 and 2 already working. It delivers the "one extra level of power" the feature promises while staying deliberately bounded (two levels only, though the root may hold any number of nested groups).
 
-**Independent Test**: Starting from a root group with at least one condition, add a nested group with its own conditions and AND/OR setting, and confirm the combined result matches the described logic. Also confirm the "add group" control is unavailable inside that nested group.
+**Independent Test**: Starting from a root group with at least one condition, add a nested group with its own conditions and AND/OR setting, and confirm the combined result matches the described logic. Add a second nested group and confirm both combine correctly with the root and with each other. Also confirm the "add group" control is unavailable inside any nested group.
 
 **Acceptance Scenarios**:
 
 1. **Given** the root group, **When** the user adds a nested group inside it, **Then** the nested group appears with its own AND/OR toggle and can hold its own conditions.
-2. **Given** a nested group already exists inside the root group, **When** the user looks for a way to add another group inside that nested group, **Then** no such control is available (nesting stops at two levels total).
-3. **Given** a root group (AND) containing one condition and one nested group (OR) with two conditions, **When** the user reads the plain-language sentence above the table, **Then** the sentence correctly reflects the combined AND/OR logic across both levels.
-4. **Given** a nested group that has all of its conditions removed, **When** the group becomes empty, **Then** the filter tree remains valid and the table does not error.
+2. **Given** one nested group already exists inside the root group, **When** the user adds another group at the root level, **Then** a second, independent nested group is added alongside the first, each with its own AND/OR toggle and conditions.
+3. **Given** a nested group already exists, **When** the user looks for a way to add another group inside that nested group (rather than inside the root), **Then** no such control is available (nesting stops at two levels total, regardless of how many nested groups the root holds).
+4. **Given** a root group (AND) containing one condition and two nested groups (each OR, with their own conditions), **When** the user reads the plain-language sentence above the table, **Then** the sentence correctly reflects the combined AND/OR logic across the root condition and every nested group.
+5. **Given** a nested group that has all of its conditions removed, **When** the group becomes empty, **Then** the filter tree remains valid and the table does not error.
 
 ---
 
@@ -236,6 +246,22 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 
 ---
 
+### User Story 14 - Clear the entire filter in one action (Priority: P14)
+
+A user with a complex filter — several conditions and one or more nested groups — wants to start over completely, without removing each condition and group one at a time.
+
+**Why this priority**: This is a convenience capability that depends on the authoring mechanics from Stories 1-3 already existing (there must be a filter to clear). It doesn't add new filtering logic, but without it, undoing a complex filter is tedious and error-prone.
+
+**Independent Test**: Build a filter with multiple conditions across the root group and at least one nested group, click "Clear All," and confirm the table returns to showing all employees with an empty root group and no nested groups remaining.
+
+**Acceptance Scenarios**:
+
+1. **Given** a filter with any combination of conditions and nested groups, **When** the user clicks "Clear All," **Then** every condition and every nested group is removed, leaving a single empty root group, with no confirmation step required.
+2. **Given** the filter has just been cleared, **When** the user views the table, **Then** all employee rows are shown, the match count reflects the full dataset, the plain-language sentence reflects an empty filter, and the URL query parameter no longer encodes any conditions.
+3. **Given** the filter is already empty (no conditions, no nested groups), **When** the user clicks "Clear All," **Then** the action is a no-op — the table, sentence, and URL remain in their already-empty state with no error.
+
+---
+
 ### Edge Cases
 
 - A `hireDate` condition using "day is" only narrows by day-of-month; it does not require or infer a month or year, so "day is 31" correctly matches employees hired on the 31st of any month that has one.
@@ -243,7 +269,9 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 - A group (root or nested) with zero conditions is treated as not narrowing the result set — it does not hide any rows.
 - A condition whose value hasn't been entered yet (e.g., a number field left blank) does not exclude rows from the result until a value is provided.
 - A condition whose value fails validation (e.g., non-numeric salary) is treated the same as an unset value for matching purposes, but continues to show its inline error until the value is corrected — it never causes the table or match count to error.
-- Attempting to add a group inside an already-nested group has no available control to do so — the UI never allows a third level.
+- Attempting to add a group inside an already-nested group has no available control to do so — the UI never allows a third level, no matter how many nested groups the root already holds.
+- The root group's "add group" control remains available after one nested group already exists, so the user can keep adding further nested groups; each is independent and only combines with its siblings and the root's own conditions via the root's AND/OR setting.
+- Clicking "Clear All" when the filter is already empty has no visible effect — it is treated as a no-op, not an error.
 - Removing a condition or group removes it and everything beneath it, and the table/plain-language sentence/URL all update to reflect the smaller tree immediately.
 - A shared URL edited to reference a field or operator that no longer exists (or never existed) is treated the same as a broken URL: the page loads with an empty filter rather than crashing or showing a partial/incorrect filter.
 - When a filter narrows the result set to zero employees, the table header remains visible with no data rows, and a message (e.g. "No data matching the filter") is shown in place of the rows.
@@ -262,8 +290,8 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 - **FR-004**: System MUST present a value input appropriate to the selected field: a dropdown of valid options for `country`, a number input for `salary`, a text input for `name`, no value input at all for the `isActive` operators, and for `hireDate` a day-of-month input constrained to 1-31 for "day is", a month selector for "month is", and a year input for "year is".
 - **FR-005**: When a user changes the field on an existing condition, system MUST reset that condition's operator to the first valid operator for the new field and clear its value. When a user changes only the operator on an existing `hireDate` condition (day is / month is / year is), system MUST also clear that condition's value, since each `hireDate` operator uses a distinct input control (day number, month selector, year number).
 - **FR-006**: Users MUST be able to combine multiple conditions and/or nested groups within a group, and choose whether the group requires all children to match (AND) or any child to match (OR).
-- **FR-007**: Users MUST be able to add a nested group inside the root group, to a maximum nesting depth of two levels (the root group, plus one level of groups inside it), and to a maximum of one nested group inside the root group at a time.
-- **FR-008**: System MUST prevent adding a group inside an already-nested group (no third level of nesting is reachable through the UI), and MUST prevent adding a second nested group inside the root group once one already exists.
+- **FR-007**: Users MUST be able to add one or more nested groups inside the root group, to a maximum nesting depth of two levels (the root group, plus one level of groups inside it). The root group MAY hold any number of nested groups; each nested group is independent and holds only conditions (no groups of its own).
+- **FR-008**: System MUST prevent adding a group inside an already-nested group (no third level of nesting is reachable through the UI), regardless of how many nested groups the root group already holds.
 - **FR-009**: Users MUST be able to add a new condition to any group, whether root or nested.
 - **FR-010**: Users MUST be able to remove any individual condition, or any group together with everything it contains.
 - **FR-011**: System MUST re-evaluate the filter and update both the visible rows and the displayed match count after any change to the filter tree — immediately for selection-based input changes, and after a short debounce delay for free-text/numeric value input changes (see FR-025).
@@ -291,12 +319,15 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 - **FR-033**: Each module (the `filter-builder` feature, and the shared debounce hook's new location) MUST expose everything other code needs from it through a single entry file; code outside a module MUST import only from that module's entry file, never from a file nested inside it, and no file inside a module may import from that module's own entry file.
 - **FR-034**: The debounce mechanism (FR-027) MUST be relocated to a shared, project-level location outside the `filter-builder` feature so any feature can reuse it, and MUST remain a generic wrapper that delays invoking a caller-supplied change callback — it MUST NOT reference filter conditions, fields, or operators.
 - **FR-035**: The restructuring described in FR-029 through FR-034 MUST NOT change any previously-specified user-facing behavior (FR-003, FR-004, FR-011, FR-013, FR-014, FR-015, FR-021, FR-022, FR-025, FR-027, SC-002, SC-010, SC-012) — this is a maintainability-only refactor.
+- **FR-036**: Users MUST be able to clear the entire filter — every condition in the root group, every nested group, and every condition within each nested group — back to a single empty root group, via one "Clear All" control, with no confirmation step required.
+- **FR-037**: Clearing the filter (FR-036) MUST immediately update the visible rows (showing all employees), the displayed match count, the plain-language sentence, and the URL query parameter to reflect the empty filter. Clicking "Clear All" when the filter is already empty MUST be a no-op with no error.
+- **FR-038**: Every interactive control in the filter builder (add condition, remove condition, add group, remove group, field/operator/value inputs, the group AND/OR toggle, and Clear All) MUST be operable using the keyboard alone, and MUST expose a clear, programmatic label for assistive technology (e.g., a screen reader). Live/spoken announcements of dynamic changes (e.g., an updated match count or a new inline error) are NOT required.
 
 ### Key Entities
 
 - **Employee**: A single row of the dataset, with a unique identifier, a name, a country (one of EG, SA, AE, US, DE), a salary amount, an active/inactive status, and a hire date (calendar date). The dataset is fixed at 40 employees and is not edited by this feature. Salary and hire date are stored as plain numbers/dates; the formatted display (thousands-separated salary, "D MMM YYYY" hire date) is presentational only and does not change the underlying value used for filtering or URL encoding.
 - **Filter Condition**: One rule within the filter tree — a field to check, an operator valid for that field, and a value (absent for the boolean "is true"/"is false" operators). A condition's value MUST satisfy its field's validation constraints before it is applied to the filter.
-- **Filter Group**: A container within the filter tree holding an ordered list of children, each of which is a Filter Condition, or (at the root level only, and at most one such child) another Filter Group, combined using either AND or OR logic. The tree is limited to two levels: the root group, and one level of groups nested directly inside it, with the root holding at most one nested group.
+- **Filter Group**: A container within the filter tree holding an ordered list of children, each of which is a Filter Condition, or (at the root level only) another Filter Group, combined using either AND or OR logic. The tree is limited to two levels: the root group, and one level of groups nested directly inside it. The root group may hold any number of nested groups; each nested group holds only conditions (no groups of its own).
 
 ## Success Criteria *(mandatory)*
 
@@ -318,6 +349,8 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 - **SC-014**: A developer opening the condition-row or top-level filter-page file can identify its rendering structure without scrolling past business logic or branching decisions, because that logic lives in a hook or plain function instead.
 - **SC-015**: Adding support for a new value-input kind requires adding one entry to a lookup map, not editing conditional logic spread across multiple files.
 - **SC-016**: Any code outside the `filter-builder` feature that needs something from it can do so with exactly one import path, with no direct imports reaching into the feature's internal files.
+- **SC-017**: A user can discard an entire filter, regardless of how many conditions or nested groups it contains, in a single action, without individually removing each condition or group.
+- **SC-018**: A user relying only on a keyboard (no mouse) can add a condition, add a group, remove a condition or group, edit a value, toggle AND/OR, and use Clear All. A screen reader user can identify the purpose of every control from its announced label.
 
 ## Assumptions
 
@@ -341,4 +374,7 @@ A developer building an unrelated feature elsewhere in the app wants the same "t
 - This update (User Stories 10-13, FR-029-FR-035, SC-013-SC-016) is likewise a structural refactor only: it introduces no new field, operator, or user-facing capability, and every previously-specified behavior continues to hold unchanged.
 - "Strategy pattern to avoid if statements" is interpreted as: wherever behavior already varies by field, operator, or value kind, that variation is expressed as data in a lookup map (continuing the pattern already established by `fieldConfig` and the value-kind-to-input-control map), rather than as conditional branches scattered through components. It does not require introducing class-based strategy objects, which would be inconsistent with this project's plain-function, hooks-based style.
 - The shared debounce hook's new location (e.g., a project-level `src/hooks/` or `src/shared/` directory, outside any feature folder) is an implementation decision to be made during planning; this spec only requires that it live outside `filter-builder` and be usable by other features without filter-specific knowledge.
+- Multiple nested groups within the root are all combined with each other, and with the root group's own conditions, using the root group's single AND/OR setting — there is no separate combinator between nested groups specifically; this is the simplest extension consistent with the existing single-AND/OR-per-group model and requires no new UI concept.
+- "Clear All" is a single, always-visible control (not one that appears only once a filter exists); it has no separate confirmation dialog, consistent with the low cost of the action (the user can immediately rebuild or, for a shared link, reload the previous URL).
+- The visual distinction required between a nested group and the root (FR-024) applies uniformly to every nested group when more than one exists, so multiple sibling nested groups remain as scannable as a single one (Story 7 / SC-008 extend unchanged to the multi-group case).
 - Suggested enhancements identified while specifying this update, offered for consideration but not required for this update to be considered complete: (1) collapse the condition row's per-field describe/format logic and the value-input lookup map into one place in `fieldConfig` so all field-driven behavior is scannable from a single file; (2) once the module entry-file convention (FR-033) is in place, consider an ESLint rule that flags deep imports into a feature's internal files from outside it, so Article V of the project constitution is enforced automatically rather than by convention alone.

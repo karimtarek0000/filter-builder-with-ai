@@ -33,16 +33,18 @@ Validation guide for the feature once implemented. No test runner is configured 
 5. Remove one condition.
 6. **Expect**: remaining condition still evaluated correctly, table updates. (Scenario 3)
 
-## Story 3 — Nested group (P3)
+## Story 3 — Nested groups (P3)
 
 1. Add a nested group inside the root group; give it its own AND/OR and at least one condition (e.g., root AND: `country is EG`; nested OR: `salary gt 8000`, `isActive is_true`).
 2. **Expect**: nested group renders with its own AND/OR toggle. (Scenario 1)
-3. Look for an "add group" control inside the nested group.
-4. **Expect**: none is available — nesting stops at two levels. (Scenario 2)
-5. Read the plain-language sentence above the table.
-6. **Expect**: it correctly states the combined logic across both levels, e.g. "country is EG AND (salary > 8000 OR isActive is true)". (Scenario 3)
-7. Remove every condition from the nested group.
-8. **Expect**: filter tree stays valid, table doesn't error (empty nested group is vacuously true). (Scenario 4)
+3. With that nested group still present, use the root group's "add group" control again to add a second nested group (e.g., OR: `country is SA`, `country is DE`).
+4. **Expect**: a second, independent nested group appears alongside the first, each with its own AND/OR toggle and conditions, and the "add group" control remains available at the root. (Scenario 2)
+5. Look for an "add group" control inside either nested group.
+6. **Expect**: none is available in either — nesting stops at two levels regardless of how many nested groups the root holds. (Scenario 3)
+7. Read the plain-language sentence above the table.
+8. **Expect**: it correctly states the combined logic across the root condition and both nested groups, e.g. "country is EG AND (salary > 8000 OR isActive is true) AND (country is SA OR country is DE)". (Scenario 4)
+9. Remove every condition from one nested group.
+10. **Expect**: filter tree stays valid, table doesn't error, and the other nested group still applies (empty nested group is vacuously true). (Scenario 5)
 
 ## Story 4 — Share via link (P4)
 
@@ -53,6 +55,8 @@ Validation guide for the feature once implemented. No test runner is configured 
 5. **Expect**: the same filter tree, sentence, and matching rows reappear exactly. (Scenario 2)
 6. Hand-edit the `f` value in the URL to garbage (e.g., truncate it, or change a valid character) and load the page.
 7. **Expect**: page loads with an empty filter (all 40 rows visible), no error shown anywhere. (Scenario 3, and Edge Cases: unrecognized field/operator in the URL)
+8. Build a filter with **two** nested groups at the root (per Story 3 Scenario 2), each with its own condition, then reload the page fresh.
+9. **Expect**: both nested groups, their conditions, and the root condition all reappear exactly as built — not an empty filter. (Regression check for the 2026-07-28 fix to `decodeFilterFromParam`'s nested-group-count validation, which previously discarded any URL with more than one root-level nested group.)
 
 ## Story 5 — Hire date components (P5)
 
@@ -134,6 +138,21 @@ This story is verified by reading code, not by UI interaction.
 2. **Expect**: the hook's signature and implementation reference no filter-specific concept (no `Field`, `Operator`, `FilterCondition` import) — it takes an arbitrary value, a commit callback, and a delay. (Scenario 1, FR-034)
 3. In the browser, re-run Story 1 Scenario 5 (`salary`) and the `name`/`hireDate` day/year debounced inputs.
 4. **Expect**: all continue to debounce exactly as before the relocation — typed value shown immediately, committed once after the pause, no dangling timer after switching fields or unmounting. (Scenario 2, FR-034/FR-035)
+
+## Story 14 — Clear All (P14)
+
+1. Build a filter with at least two root-level conditions and two nested groups (each with its own conditions).
+2. Click "Clear All".
+3. **Expect**: every condition and every nested group is removed, leaving a single empty root group; all 40 employee rows show; the match count reflects the full dataset; the plain-language sentence reflects an empty filter; the URL's `f` query parameter no longer encodes any conditions. No confirmation prompt appears. (Scenarios 1-2, FR-036/FR-037)
+4. With the filter already empty, click "Clear All" again.
+5. **Expect**: no visible change and no error — the table, sentence, and URL remain in their already-empty state. (Scenario 3)
+
+## Accessibility spot-check (FR-038, SC-018)
+
+1. Using only the keyboard (Tab/Shift+Tab to move focus, Enter/Space to activate, arrow keys inside a `<select>`), add a condition, add a nested group, remove a condition, toggle a group's AND/OR, edit a value, and click Clear All.
+2. **Expect**: every one of those actions is reachable and operable without a mouse. (SC-018)
+3. Inspect the field/operator/value selects, the remove buttons, and the add-condition/add-group/Clear All buttons in the browser's accessibility tree (e.g. dev tools' Accessibility panel).
+4. **Expect**: every control has a non-empty accessible name (via a `<label>` or `aria-label`) describing its purpose. (SC-018)
 
 ## Zero-match edge case
 
