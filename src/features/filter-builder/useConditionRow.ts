@@ -32,7 +32,8 @@ export const useConditionRow = (
   }
 
   const handleOperatorChange = (operator: Operator) => {
-    onChange({ ...condition, operator })
+    const kindChanged = valueKindForOperator(condition.field, operator) !== valueKind
+    onChange({ ...condition, operator, value: kindChanged ? undefined : condition.value })
   }
 
   const handleValueChange = (value: string | number | undefined) => {
