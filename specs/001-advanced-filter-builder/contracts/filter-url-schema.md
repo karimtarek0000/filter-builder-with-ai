@@ -50,8 +50,10 @@ Field definitions match [data-model.md](../data-model.md) exactly:
 | condition `.field`        | `"name" \| "country" \| "salary" \| "isActive" \| "hireDate"`          |
 | condition `.operator`     | Must be one of the operators valid for `.field` (see `fieldConfig.ts`) |
 | condition `.value`        | `string` (name/country), `number` (salary; hireDate day/month/year), or absent (isActive) |
-| nested group `.kind`      | `"group"`, only legal directly inside the root's `children`           |
+| nested group `.kind`      | `"group"`, only legal directly inside the root's `children`; the root's `children` may hold any number of nested-group objects (2026-07-28 Amendment) |
 | nested group `.children[]`| Condition objects only — no group-inside-group                        |
+
+"Clear All" (FR-036/FR-037) encodes as the same empty-root shape as a freshly-loaded page: `{ "id": "string", "kind": "group", "logic": "AND", "children": [] }` — no distinct wire representation.
 
 `id` values are round-tripped as opaque strings; a decoder does not need to validate their format beyond "present and a string" (a decoder MAY regenerate fresh ids instead — the tree's structure and content is the part of the contract, not id stability).
 
@@ -74,8 +76,7 @@ A condition whose value currently fails the field/operator's Zod validation (FR-
 3. Structurally validate the parsed `unknown` value against the shape above:
    - Root must be an object with `kind === "group"`, `logic` one of `"AND"/"OR"`, `children` an array.
    - Every child must be a condition or a group, per the discriminant `kind`.
-   - A group nested inside another nested group (depth > 2) is invalid.
-   - More than one nested group directly inside the root is invalid.
+   - A group nested inside another nested group (depth > 2) is invalid — the root may hold any number of nested groups (2026-07-28 Amendment), but a nested group's own `children` must contain only conditions, never a group.
    - Every condition's `field` must be a known `Field`, and its `operator` must be in that field's valid operator list from `fieldConfig.ts`.
    - Any structural mismatch at any depth → return `null` for the **whole tree** (no partial/best-effort reconstruction — FR-015 explicitly rejects a "partial/incorrect filter").
 4. On success, return the validated, typed `FilterGroup` (ids may be reused as-is or regenerated).
