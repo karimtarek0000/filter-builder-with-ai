@@ -1,21 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export const useDebouncedCommit = <T>(value: T, onCommit: (value: T) => void, delayMs: number) => {
   const [localValue, setLocalValue] = useState(value)
-  const [previousValue, setPreviousValue] = useState(value)
+  const [lastSyncedValue, setLastSyncedValue] = useState(value)
 
-  if (value !== previousValue) {
-    setPreviousValue(value)
+  if (value !== lastSyncedValue) {
+    setLastSyncedValue(value)
     setLocalValue(value)
   }
 
+  const onCommitRef = useRef(onCommit)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onCommit(localValue)
-    }, delayMs)
+    onCommitRef.current = onCommit
+  })
 
+  useEffect(() => {
+    if (localValue === value) return
+
+    const timer = setTimeout(() => onCommitRef.current(localValue), delayMs)
     return () => clearTimeout(timer)
-  }, [delayMs, localValue, onCommit])
+  }, [localValue, value, delayMs])
 
   return [localValue, setLocalValue] as const
 }

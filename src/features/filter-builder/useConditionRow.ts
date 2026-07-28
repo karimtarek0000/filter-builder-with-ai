@@ -1,10 +1,10 @@
+import { useDebouncedCommit } from '../../hooks'
 import {
   defaultOperatorForField,
   fieldConfig,
   isDebouncedValueKind,
   valueKindForOperator,
 } from './fieldConfig'
-import { useDebouncedCommit } from '../../hooks'
 import type { Field, FilterCondition, Operator } from './types'
 import { validateConditionValue } from './validation'
 
