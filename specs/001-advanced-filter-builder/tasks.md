@@ -11,17 +11,17 @@ description: "Task list for Advanced Filter Builder"
 
 **Tests**: No test runner is configured in this project (see plan.md → Technical Context → Testing). No test tasks are included; each user story instead references its manual repro steps in [quickstart.md](./quickstart.md), per the constitution's "manual repro step instead" rule.
 
-**Organization**: Tasks are grouped by user story (spec.md priorities P1–P14) so each story is independently implementable and testable.
+**Organization**: Tasks are grouped by user story (spec.md priorities P1–P18) so each story is independently implementable and testable.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: Maps the task to US1–US14 from spec.md
+- **[Story]**: Maps the task to US1–US18 from spec.md
 - File paths are exact, per plan.md's Project Structure
 
 ## Path Conventions
 
-Single Vite + React project (existing scaffold). Feature code lives under `src/data/` and `src/features/filter-builder/`; User Stories 12-13 add a second, sibling module at `src/hooks/` for the relocated debounce hook, per plan.md.
+Single Vite + React project (existing scaffold). Feature code lives under `src/data/` and `src/features/filter-builder/`; User Stories 12-13 add a second, sibling module at `src/hooks/` for the relocated debounce hook, and User Stories 15-16 further split `filter-builder/` into `hooks/`/`components/` subfolders and move every Employee-specific file into `src/data/`, per plan.md.
 
 ## Status Note (2026-07-28)
 
@@ -38,6 +38,17 @@ spec.md/plan.md picked up two amendments since Phase 17 was completed: Story 3's
 - `src/features/filter-builder/FilterGroup.tsx`'s "Add group" button is still gated by `isRoot && !hasNestedGroup`, i.e. it still enforces the superseded "at most one nested group" rule.
 - No "Clear All" control exists anywhere in the codebase.
 - No control in `FilterCondition.tsx`, `ValueInput.tsx`, or `FilterGroup.tsx` carries an `aria-label` or associated `<label>` beyond its own visible button text (e.g. the field/operator `<select>`s and every value-input control are unlabeled).
+
+## Status Note (2026-07-28, third update)
+
+spec.md/plan.md picked up a third amendment since Phase 21 was completed: Stories 15-18 (FR-039–FR-044) generalize the engine/components to a caller-supplied `FilterFieldConfig<TRow>`, reorganize `filter-builder` into `hooks/`/`components/` subfolders, route every value kind through one wrapped debounce call, and give each new subfolder its own entry file. A codebase check while generating Phases 22-26 below confirmed none of this work exists yet:
+
+- `src/features/filter-builder/types.ts` still hardcodes `Field`/`Operator` as fixed string-literal unions (not `string`, not validated against a caller-supplied config); `fieldConfig.ts` and `validation.ts` still contain Employee-specific entries (country/salary/hireDate rules) directly inside the feature.
+- `src/features/filter-builder/EmployeeTable.tsx` and `format.ts` still live inside the feature and import `Employee` directly; no `src/data/employeeFieldConfig.ts` exists.
+- `FilterBuilder.tsx` still hardcodes `employees` from `../../data/employees` and renders `<EmployeeTable>` directly — it is not generic over `TRow`, and `App.tsx` still calls `<FilterBuilder />` with no props.
+- There is no `hooks/` or `components/` subfolder inside `src/features/filter-builder/` — every file (`useConditionRow.ts`, `useFilterUrlSync.ts`, `FilterBuilder.tsx`, `FilterGroup.tsx`, `FilterCondition.tsx`, `ValueInput.tsx`) is still flat at the feature's top level, and there is no per-subfolder `index.ts`.
+- `useConditionRow.ts`'s `handleValueChange` still branches `if (debounced) { setLocalValue(value) } else { onChange(...) }`, and `fieldConfig.ts` still exposes `isDebouncedValueKind` as a `boolean` map (`DEBOUNCE_BY_VALUE_KIND`), not the `debounceMsForValueKind` numeric-delay map FR-042/FR-043 require.
+- `urlState.ts`'s `encodeFilterToParam(root)` does not currently drop a condition whose value is failing validation before encoding, despite this being required by FR-013's 2026-07-28 clarification and documented in [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) → Encoding rule step 1 — a pre-existing gap, unrelated to Stories 15-18 on its own, but one that must be fixed correctly while this function is rewritten to take a `fieldConfig` parameter (T080 below), rather than carried forward.
 
 ---
 
@@ -364,6 +375,87 @@ spec.md/plan.md picked up two amendments since Phase 17 was completed: Story 3's
 
 ---
 
+## Phase 22: User Story 15 - Plug the filter builder into a different table (Priority: P15)
+
+**Goal**: The feature's engine, condition/group components, and validation operate against a `FilterFieldConfig<TRow>` and dataset supplied by the caller via props/generics; no file inside `src/features/filter-builder/` references Employee-specific field names, operators, or value-kind mappings. The Employee table's own behavior continues to work unchanged, now driven by an Employee-specific config passed in from `src/App.tsx`.
+
+**Independent Test**: Wire a throwaway field configuration for a different shape of data through the exported `FilterBuilder` and confirm filtering/grouping/nesting/URL sync all work using only that configuration, with no edits inside the feature — see [quickstart.md](./quickstart.md) → Story 15.
+
+### Implementation for User Story 15
+
+- [X] T077 [US15] Rewrite `src/features/filter-builder/types.ts`: replace the hardcoded `Field`/`Operator` string-literal unions with `OperatorConfig<TRow>` (`{ label; valueKind; options?; schema?; match: (row: TRow, value: unknown) => boolean; describe: (value: unknown) => string }`), `FieldDef<TRow>` (`{ label; operators: Record<string, OperatorConfig<TRow>> }`), and `FilterFieldConfig<TRow> = Record<string, FieldDef<TRow>>`; `FilterCondition.field`/`.operator` become `string` — per data-model.md → Field & Operator, research.md §23, implements FR-039 (depends on existing `types.ts`)
+- [X] T078 [US15] Update `src/features/filter-builder/filterEngine.ts` to take `fieldConfig: FilterFieldConfig<TRow>` as a parameter: `evaluateNode<TRow>(node, row, fieldConfig)`'s condition branch calls `fieldConfig[condition.field].operators[condition.operator].match(row, condition.value)` instead of the current hardcoded `switch (operator)`; `describeFilter<TRow>(node, fieldConfig)`'s condition branch calls `.describe(condition.value)` instead of `fieldConfig[node.field].describe(...)`; `describeMatchCount` and `createEmptyFilter`/`createEmptyRoot`-equivalent stay untyped by `TRow` (no field lookup needed) — implements FR-039 (depends on T077)
+- [X] T079 [US15] Update `src/features/filter-builder/validation.ts` so `validateConditionValue<TRow>(condition, fieldConfig)` looks up `fieldConfig[condition.field]?.operators[condition.operator]?.schema` and runs it (absent schema = always valid), replacing the current hardcoded `schemasByField` map — implements FR-039 (depends on T077)
+- [X] T080 [US15] Update `src/features/filter-builder/urlState.ts`: `encodeFilterToParam<TRow>(root, fieldConfig)` first recursively drops any condition whose value currently fails `validateConditionValue(condition, fieldConfig)` from its parent group's `children` (the currently-missing behavior flagged in the Status Note above, required by [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) → Encoding rule step 1 / FR-013) before `JSON.stringify`-ing; `decodeFilterFromParam<TRow>(raw, fieldConfig)`'s `isField`/operator checks validate against `fieldConfig`'s own keys (`field in fieldConfig`, `operator in fieldConfig[field].operators`) instead of the removed hardcoded `fieldConfig.ts` import — implements FR-039, FR-013 (depends on T077, T079)
+- [X] T081 [US15] Create `src/data/employeeFieldConfig.ts` exporting `employeeFieldConfig: FilterFieldConfig<Employee>`: merge the current `fieldConfig.ts` Employee entries (operator lists, `describe` phrases, `COUNTRY_OPTIONS`/`MONTH_OPTIONS`) and `validation.ts`'s Employee Zod schemas into one object per field, moving each operator's comparison logic (currently `evaluateCondition`'s `switch` in `filterEngine.ts` — `contains`/`equals`/`is`/`is_not`/`gt`/`lt`/`eq`/`is_true`/`is_false`/`day_is`/`month_is`/`year_is`, including the `hireDate` string-slicing) into that operator's own `match: (employee, value) => boolean` — per research.md §23/§24, implements FR-039, FR-040 (depends on T077-T080)
+- [X] T082 [P] [US15] Move `EmployeeTable.tsx` and `format.ts` from `src/features/filter-builder/` to `src/data/EmployeeTable.tsx` and `src/data/format.ts`, updating their now-local `Employee`/`formatSalary`/`formatHireDate` import paths — per research.md §24, implements FR-039 (depends on existing files)
+- [X] T083 [US15] Rewrite `src/features/filter-builder/FilterBuilder.tsx` to be generic: `FilterBuilder<TRow>({ fieldConfig, data, children }: { fieldConfig: FilterFieldConfig<TRow>; data: TRow[]; children: (matchingRows: TRow[]) => ReactNode })`, replacing the hardcoded `employees` import and `<EmployeeTable>` call with `data`/`children(visibleRows)`, and threading `fieldConfig` into `useFilterUrlSync`/`filterEmployees`/`describeFilter`/`FilterGroup` — still pure composition (FR-032 unaffected) — implements FR-039 (depends on T078, T082)
+- [X] T084 [US15] Update `FilterGroup.tsx`, `FilterCondition.tsx`, and `ValueInput.tsx` to receive `fieldConfig`/be generic over `TRow` instead of importing the hardcoded `fieldConfig.ts` map directly (e.g. `FilterGroup`'s `createCondition` needs a field key and default operator from the passed-in `fieldConfig`, not `defaultOperatorForField('name')`); reduce `src/features/filter-builder/fieldConfig.ts` to generic, Employee-agnostic helpers only (`defaultOperatorForField(fieldConfig, field)`, `valueKindForOperator(fieldConfig, field, operator)`), deleting every Employee-specific entry (`COUNTRY_OPTIONS`, `MONTH_OPTIONS`, the `fieldConfig` object literal) now that they live in `employeeFieldConfig.ts` — implements FR-039 (depends on T081, T083)
+- [X] T085 [US15] Update `useConditionRow.ts` and `useFilterUrlSync.ts` to accept/thread `fieldConfig: FilterFieldConfig<TRow>` as a parameter instead of importing the module-level `fieldConfig.ts` object, so both hooks are generic over `TRow` — implements FR-039 (depends on T084)
+- [X] T086 [US15] Wire `src/App.tsx`: `<FilterBuilder fieldConfig={employeeFieldConfig} data={employees}>{(matchingRows) => <EmployeeTable employees={matchingRows} />}</FilterBuilder>`, importing `employeeFieldConfig`/`EmployeeTable` from `src/data/` and `employees` from `src/data/employees` — implements FR-040 (depends on T081, T082, T083)
+- [X] T087 [US15] Validate per [quickstart.md](./quickstart.md) → Story 15: in a scratch (uncommitted) file, define a small `FilterFieldConfig<TRow>` for a different shape of data (e.g. a `Product` type with `sku`/`inStock`) and render `<FilterBuilder fieldConfig={...} data={...}>{...}</FilterBuilder>`, confirming add/remove condition/group, AND/OR, and the URL `f` param all work with no edits inside `src/features/filter-builder/` (Scenario 1); grep `src/features/filter-builder/` for `Employee`, `country`, `salary`, `isActive`, `hireDate` and confirm no matches (Scenario 2); re-run Story 1 Scenario 1 and Story 4 Scenario 1 against the real app and confirm the Employee table's filtering/URL sync still work exactly as before (Scenario 3, FR-040) (depends on T086)
+
+**Checkpoint**: `filter-builder` is generic over `TRow`; Employee is its one live consumer via `src/data/employeeFieldConfig.ts`.
+
+---
+
+## Phase 23: User Story 16 - Organize feature files by kind (Priority: P16)
+
+**Goal**: Every hook file inside `filter-builder` lives under a `hooks` subfolder and every component file lives under a `components` subfolder; the feature's own `index.ts` stays at the top level.
+
+**Independent Test**: Open the `filter-builder` folder and confirm every hook lives under `hooks/`, every component lives under `components/`, and the entry file stays at the top — see [quickstart.md](./quickstart.md) → Story 16.
+
+### Implementation for User Story 16
+
+- [X] T088 [US16] Create `src/features/filter-builder/hooks/` and move `useConditionRow.ts`, `useFilterUrlSync.ts` into it; create `src/features/filter-builder/components/` and move `FilterBuilder.tsx`, `FilterGroup.tsx`, `FilterCondition.tsx`, `ValueInput.tsx` into it; `types.ts`, `fieldConfig.ts`, `filterEngine.ts`, `validation.ts`, and `urlState.ts` stay directly under `filter-builder/` alongside the feature's `index.ts` — update every relative import broken by the move (e.g. `components/FilterCondition.tsx`'s `import { useConditionRow } from '../hooks/useConditionRow'`, `hooks/useConditionRow.ts`'s `import { fieldConfig } from '../fieldConfig'`) — per research.md §25, implements FR-041 (depends on T085, since the hooks/components must already be generic before or as part of this move)
+- [X] T089 [US16] Validate per [quickstart.md](./quickstart.md) → Story 16: confirm every hook file lives inside `hooks/` (Scenario 1) and every component file lives inside `components/` (Scenario 2); re-run Story 1 Scenario 1 and Story 4 Scenario 1 and confirm both work exactly as before — only import paths changed (Scenario 3, FR-041) (depends on T088)
+
+**Checkpoint**: `filter-builder`'s files are grouped by kind into `hooks/`/`components/`.
+
+---
+
+## Phase 24: User Story 17 - Commit debounced edits through one wrapped handler (Priority: P17)
+
+**Goal**: `useConditionRow`'s value-change handling routes every value kind — debounced and non-debounced alike — through the same single `useDebouncedCommit` call, with the delay supplied as per-`valueKind` configuration rather than an inline `if (debounced)`/`else` branch.
+
+**Independent Test**: Read `useConditionRow.ts`'s value-change handling and confirm it calls `useDebouncedCommit` once, unconditionally, for every value kind, with the delay sourced from `fieldConfig.ts` — see [quickstart.md](./quickstart.md) → Story 17.
+
+### Implementation for User Story 17
+
+- [X] T090 [US17] In `src/features/filter-builder/fieldConfig.ts`, replace `DEBOUNCE_BY_VALUE_KIND: Record<ValueKind, boolean>`/`isDebouncedValueKind` with `DEBOUNCE_MS_BY_VALUE_KIND: Record<ValueKind, number>` (`text`/`number`/`day`/`year` → `700`, `select`/`month`/`none` → `0`) exposed as `debounceMsForValueKind(kind: ValueKind): number` — per research.md §26, implements FR-042 (depends on T088)
+- [X] T091 [US17] Update `src/features/filter-builder/hooks/useConditionRow.ts`: remove the local `DEBOUNCE_MS` constant and the `debounced`/`isDebouncedValueKind` check; call `useDebouncedCommit(condition.value, commit, debounceMsForValueKind(valueKind))` unconditionally for every `valueKind`; `handleValueChange` becomes exactly the hook's own `setLocalValue`, and `displayValue` becomes exactly the hook's own `localValue`, with no `if (debounced) {...} else {...}` left — implements FR-043 (depends on T090)
+- [X] T092 [US17] Validate per [quickstart.md](./quickstart.md) → Story 17: confirm `handleValueChange` and `displayValue` are the identical call/value for every `valueKind`, with no debounced/non-debounced branch (Scenarios 1-2); re-run Story 1 Scenario 5 (`salary`, debounced — still waits ~700ms after the last keystroke) and Story 5 Scenario 1 (`hireDate` month, non-debounced — still updates with no perceptible delay) and confirm both behave exactly as before (Scenario 3, FR-025/FR-027) (depends on T091)
+
+**Checkpoint**: `useConditionRow` routes every value kind through one wrapped debounce call.
+
+---
+
+## Phase 25: User Story 18 - Import each part of the feature through one file per kind (Priority: P18)
+
+**Goal**: `hooks/` and `components/` each expose their own single entry file; every cross-subfolder import — inside or outside the feature, including the feature's own top-level `index.ts` and single-item imports — goes through that entry file rather than a direct nested-file import.
+
+**Independent Test**: Pick any file using more than one hook or component from `filter-builder` and confirm it imports all of them through the relevant subfolder's entry file in one statement — see [quickstart.md](./quickstart.md) → Story 18.
+
+### Implementation for User Story 18
+
+- [X] T093 [P] [US18] Create `src/features/filter-builder/hooks/index.ts` re-exporting `useConditionRow` and `useFilterUrlSync` as the subfolder's sole entry point — implements FR-044 (depends on T088)
+- [X] T094 [P] [US18] Create `src/features/filter-builder/components/index.ts` re-exporting `FilterBuilder`, `FilterGroup`, `FilterCondition`, and `ValueInput` as the subfolder's sole entry point — implements FR-044 (depends on T088)
+- [X] T095 [US18] Update `src/features/filter-builder/index.ts` to import `FilterBuilder` from `./components` (not `./components/FilterBuilder`) and any re-exported types from `./types`; update every cross-subfolder import inside the feature (e.g. `components/FilterCondition.tsx`'s `useConditionRow` import) to go through `../hooks`/`../components` rather than a direct nested-file path, including imports that currently need only one item — implements FR-044 (depends on T093, T094)
+- [X] T096 [US18] Validate per [quickstart.md](./quickstart.md) → Story 18: confirm `src/features/filter-builder/index.ts` imports `FilterBuilder` from `./components` (Scenario 3); confirm `components/FilterCondition.tsx` imports `useConditionRow` from `../hooks`, not `../hooks/useConditionRow` (Scenarios 1-2) (depends on T095)
+
+**Checkpoint**: All eighteen user stories are independently functional; every subfolder inside `filter-builder` has one entry file that every cross-subfolder import goes through.
+
+---
+
+## Phase 26: Polish & Cross-Cutting Concerns (User Stories 15-18)
+
+**Purpose**: Repo-wide quality gates and full manual validation after the generalization/reorganization pass.
+
+- [X] T097 [P] Run `npm run build` (type-check + production build) and `npm run lint` after the Stories 15-18 changes; fix any errors surfaced, per CLAUDE.md's quality gates
+- [X] T098 Re-run the complete [quickstart.md](./quickstart.md) walkthrough end-to-end — all 18 stories, the accessibility spot-check, the zero-match edge case, and the back-button regression watch — and confirm every expectation still holds
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -389,6 +481,11 @@ spec.md/plan.md picked up two amendments since Phase 17 was completed: Story 3's
 - **User Story 14 (Phase 19)**: Depends on the existing `filterEngine.ts` and `FilterBuilder.tsx`/`useFilterUrlSync.ts` (T009, T017-T018); independent of Phase 18's own changes
 - **Accessibility (Phase 20)**: Depends on the existing `FilterCondition.tsx`, `ValueInput.tsx`, `FilterGroup.tsx`, and Phase 19's Clear All button (T069, for its own `aria-label`)
 - **Polish (Phase 21)**: Depends on Phases 18-20
+- **User Story 15 (Phase 22)**: Depends on the existing `types.ts`/`fieldConfig.ts`/`validation.ts`/`filterEngine.ts`/`urlState.ts`/`FilterBuilder.tsx`/`EmployeeTable.tsx`/`format.ts`/`App.tsx` (from Phases 2-21); independent of Phase 18-20's own changes
+- **User Story 16 (Phase 23)**: Depends on User Story 15 (Phase 22) — the files being moved into `hooks/`/`components/` must already be generic
+- **User Story 17 (Phase 24)**: Depends on User Story 16 (Phase 23) — `useConditionRow.ts` and `fieldConfig.ts` must already be at their `hooks/`/top-level post-move locations
+- **User Story 18 (Phase 25)**: Depends on User Story 16 (Phase 23) — the `hooks/`/`components/` subfolders must exist before they can get entry files; independent of Phase 24's own changes
+- **Polish (Phase 26)**: Depends on Phases 22-25
 
 Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above. The same is true of US9–US13: each is a maintainability refactor of files already built by US1/US6/US7, not a disjoint file set. Phases 18-20 follow the same pattern: Phase 18 revises `FilterGroup.tsx`'s existing gating rule and finally implements the long-flagged `describeFilter` gap, Phase 19 adds one function plus one button to already-existing files, and Phase 20 only adds `aria-label` attributes to controls that already exist.
 
@@ -411,6 +508,10 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US3 (revised): T064 needs the existing `FilterGroup.tsx`; T065 needs the existing `filterEngine.ts`/`fieldConfig.ts` (parallel with T064); T066 needs T065; T067 needs T064 and T066
 - US14: T068 needs the existing `filterEngine.ts`; T069 needs T068; T070 needs T069
 - Accessibility: T071, T072, T073 are independent of each other; T074 needs T071, T072, T073, and T069
+- US15: T077 needs the existing `types.ts`; T078 and T079 each need T077 (parallel with each other); T080 needs T077 and T079; T081 needs T077-T080; T082 is independent of T077-T081; T083 needs T078 and T082; T084 needs T081 and T083; T085 needs T084; T086 needs T081, T082, T083; T087 needs T086
+- US16: T088 needs T085 (everything being moved must already be generic); T089 needs T088
+- US17: T090 needs T088; T091 needs T090; T092 needs T091
+- US18: T093 and T094 each need T088 (parallel with each other); T095 needs T093 and T094; T096 needs T095
 
 ### Parallel Opportunities
 
@@ -424,6 +525,9 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US3 (revised): T064 (`FilterGroup.tsx`) and T065 (`filterEngine.ts`) touch different files and can run in parallel
 - Accessibility (Phase 20): T071 (`FilterCondition.tsx`/`ValueInput.tsx`), T072 (`FilterCondition.tsx`'s Remove button), and T073 (`FilterGroup.tsx`) can all run in parallel
 - Polish (Phase 21): T075 is marked [P] (independent of T076)
+- US15: T078 (`filterEngine.ts`) and T079 (`validation.ts`) touch different files and can run in parallel once T077 lands; T082 (`EmployeeTable.tsx`/`format.ts` move) is independent of T077-T081 and can run any time before T086
+- US18: T093 (`hooks/index.ts`) and T094 (`components/index.ts`) touch different files and can run in parallel once T088 lands
+- Polish (Phase 26): T097 is marked [P] (independent of T098)
 
 ---
 
@@ -471,6 +575,20 @@ Task: "Add an aria-label to FilterCondition.tsx's Remove button"
 Task: "Add aria-labels to FilterGroup.tsx's AND/OR toggle, Remove group, Add condition, and Add group buttons"
 ```
 
+## Parallel Example: User Story 15
+
+```bash
+Task: "Update filterEngine.ts's evaluateNode/describeFilter to take a fieldConfig parameter"
+Task: "Update validation.ts's validateConditionValue to look up its schema from a fieldConfig parameter"
+```
+
+## Parallel Example: User Story 18
+
+```bash
+Task: "Create src/features/filter-builder/hooks/index.ts re-exporting useConditionRow and useFilterUrlSync"
+Task: "Create src/features/filter-builder/components/index.ts re-exporting FilterBuilder, FilterGroup, FilterCondition, ValueInput"
+```
+
 ---
 
 ## Implementation Strategy
@@ -506,17 +624,23 @@ Task: "Add aria-labels to FilterGroup.tsx's AND/OR toggle, Remove group, Add con
 19. User Story 14 → add Clear All → validate full-reset + no-op-when-empty → demo
 20. Accessibility → add `aria-label`s across all existing controls → validate keyboard-only + accessible-name spot-check → demo
 21. Polish → build/lint clean, full quickstart pass (Stories 1-14 + accessibility)
+22. User Story 15 → generalize `types.ts`/`filterEngine.ts`/`validation.ts`/`urlState.ts`/components to a caller-supplied `FilterFieldConfig<TRow>`, relocate Employee-specific config/table/formatting to `src/data/` → validate a throwaway config wires through with no Employee reference left inside the feature → demo (code-review only)
+23. User Story 16 → move hook files into `hooks/` and component files into `components/` → validate only import paths changed → demo (code-review only)
+24. User Story 17 → replace `useConditionRow`'s debounced/immediate branch with one wrapped `useDebouncedCommit` call configured by a per-`valueKind` delay → validate no regression to debounce timing → demo (code-review only)
+25. User Story 18 → add `hooks/index.ts` and `components/index.ts`, route every cross-subfolder import through them → validate no direct nested-file imports remain → demo (code-review only)
+26. Polish → build/lint clean, full quickstart pass (Stories 1-18 + accessibility)
 
 ---
 
 ## Notes
 
 - [P] tasks touch different files with no dependency on an incomplete task
-- [Story] labels map tasks to spec.md's US1–US14 for traceability
+- [Story] labels map tasks to spec.md's US1–US18 for traceability
 - No test runner is configured; every story's independent test is a manual quickstart.md walkthrough instead of automated tests
-- Stories 9-11 and 12 are read-the-code / audit-only user stories — their "Independent Test" is a code review plus a browser regression check, not new user-visible behavior
+- Stories 9-13 and 15-18 are read-the-code / audit-only user stories — their "Independent Test" is a code review plus a browser regression check, not new user-visible behavior
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently before moving on
 - T053's flagged question about the missing `describeFilter`/FR-012 sentence was never resolved during Phases 13-17 (confirmed still missing when generating Phase 18) — Phase 18 (T065) now implements it directly, since Story 3 (revised)'s Scenario 4 makes it a hard blocker rather than an optional follow-up
 - Phase 20 (Accessibility) has no dedicated user story number in spec.md — FR-038/SC-018 are a cross-cutting constraint introduced by the 2026-07-28 Amendment 2, so its tasks carry no `[Story]` label, consistent with the Setup/Foundational/Polish phases above
+- Phases 22-25 (Stories 15-18, Amendment 3) are the first pass over `filter-builder` since it was built entirely hardcoded to `Employee` — the Status Note above this section records every place that hardcoding currently lives (`types.ts`'s fixed `Field`/`Operator` unions, `fieldConfig.ts`/`validation.ts`'s Employee entries, `EmployeeTable.tsx`/`format.ts` inside the feature folder); T080 also folds in the FR-013 encode-time invalid-condition-drop behavior, found missing from `urlState.ts` while auditing the exact function T080 already has to touch for genericization
 </content>
