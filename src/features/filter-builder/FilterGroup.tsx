@@ -29,8 +29,6 @@ const createGroup = (): FilterGroupType => ({
 })
 
 const FilterGroup = ({ group, isRoot, onChange, onRemove }: FilterGroupProps) => {
-  const hasNestedGroup = group.children.some(child => child.kind === 'group')
-
   const updateChild = (id: string, updated: FilterNode) => {
     onChange({
       ...group,
@@ -63,11 +61,21 @@ const FilterGroup = ({ group, isRoot, onChange, onRemove }: FilterGroupProps) =>
       }
     >
       <div className="flex items-center gap-2">
-        <button type="button" className="border border-gray-400 px-2 py-1" onClick={toggleLogic}>
+        <button
+          type="button"
+          className="border border-gray-400 px-2 py-1"
+          aria-label={`Group logic: ${group.logic}, click to toggle`}
+          onClick={toggleLogic}
+        >
           {group.logic}
         </button>
         {onRemove && (
-          <button type="button" className="text-red-600" onClick={onRemove}>
+          <button
+            type="button"
+            className="text-red-600"
+            aria-label="Remove nested group"
+            onClick={onRemove}
+          >
             Remove group
           </button>
         )}
@@ -93,14 +101,20 @@ const FilterGroup = ({ group, isRoot, onChange, onRemove }: FilterGroupProps) =>
       )}
 
       <div className="flex gap-2">
-        <button type="button" className="border border-gray-400 px-2 py-1" onClick={addCondition}>
+        <button
+          type="button"
+          className="border border-gray-400 px-2 py-1"
+          aria-label="Add condition"
+          onClick={addCondition}
+        >
           Add condition
         </button>
 
-        {isRoot && !hasNestedGroup && (
+        {isRoot && (
           <button
             type="button"
             className="border border-gray-400 px-2 py-1"
+            aria-label="Add nested group"
             onClick={addNestedGroup}
           >
             Add group

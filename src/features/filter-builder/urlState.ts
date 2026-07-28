@@ -46,18 +46,14 @@ const parseGroup = (record: Record<string, unknown>, depth: number): FilterGroup
   }
 
   const parsedChildren: FilterNode[] = [];
-  let nestedGroupCount = 0;
 
   for (const child of children) {
     const parsedChild = parseNode(child, depth + 1);
     if (parsedChild === null) {
       return null;
     }
-    if (parsedChild.kind === "group") {
-      nestedGroupCount += 1;
-      if (depth !== 1 || nestedGroupCount > 1) {
-        return null;
-      }
+    if (parsedChild.kind === "group" && depth !== 1) {
+      return null;
     }
     parsedChildren.push(parsedChild);
   }

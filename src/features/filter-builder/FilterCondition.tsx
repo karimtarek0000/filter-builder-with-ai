@@ -25,6 +25,7 @@ const FilterCondition = ({ condition, onChange, onRemove }: FilterConditionProps
       <div className="grid grid-cols-1 gap-2 md:grid-cols-[10rem_8rem_12rem_5rem] md:items-center">
         <select
           className="border border-gray-300 p-1"
+          aria-label="Field"
           value={condition.field}
           onChange={e => handleFieldChange(e.target.value as Field)}
         >
@@ -37,6 +38,7 @@ const FilterCondition = ({ condition, onChange, onRemove }: FilterConditionProps
 
         <select
           className="border border-gray-300 p-1"
+          aria-label="Operator"
           value={condition.operator}
           onChange={e => handleOperatorChange(e.target.value as Operator)}
         >
@@ -56,7 +58,12 @@ const FilterCondition = ({ condition, onChange, onRemove }: FilterConditionProps
           />
         </div>
 
-        <button type="button" className="text-red-600 justify-self-start" onClick={onRemove}>
+        <button
+          type="button"
+          className="text-red-600 justify-self-start"
+          aria-label="Remove condition"
+          onClick={onRemove}
+        >
           Remove
         </button>
       </div>

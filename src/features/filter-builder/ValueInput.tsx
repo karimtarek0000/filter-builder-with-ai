@@ -12,6 +12,7 @@ const TextInput = ({ value, onChange }: InputProps) => (
   <input
     className="border border-gray-300 p-1 w-full"
     type="text"
+    aria-label="Value"
     value={typeof value === 'string' ? value : ''}
     onChange={e => onChange(e.target.value)}
   />
@@ -22,6 +23,7 @@ const NumberInput = ({ value, onChange }: InputProps) => (
     className="border border-gray-300 p-1 w-full"
     type="text"
     inputMode="decimal"
+    aria-label="Value"
     value={value ?? ''}
     onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
   />
@@ -32,6 +34,7 @@ const NumericInput = ({ value, onChange }: InputProps) => (
     className="border border-gray-300 p-1 w-full"
     type="text"
     inputMode="numeric"
+    aria-label="Value"
     value={value ?? ''}
     onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
   />
@@ -40,6 +43,7 @@ const NumericInput = ({ value, onChange }: InputProps) => (
 const SelectInput = ({ value, onChange, options }: InputProps) => (
   <select
     className="border border-gray-300 p-1 w-full"
+    aria-label="Value"
     value={typeof value === 'string' ? value : ''}
     onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
   >
@@ -55,6 +59,7 @@ const SelectInput = ({ value, onChange, options }: InputProps) => (
 const MonthInput = ({ value, onChange }: InputProps) => (
   <select
     className="border border-gray-300 p-1 w-full"
+    aria-label="Value"
     value={typeof value === 'number' ? value : ''}
     onChange={e => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
   >

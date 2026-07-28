@@ -1,4 +1,5 @@
 import type { Employee } from '../../data/employees'
+import { fieldConfig } from './fieldConfig'
 import type { FilterCondition, FilterGroup, FilterNode } from './types'
 import { validateConditionValue } from './validation'
 
@@ -62,5 +63,28 @@ export const evaluateNode = (node: FilterNode, employee: Employee): boolean => {
 export const filterEmployees = (root: FilterGroup, employees: Employee[]): Employee[] =>
   employees.filter(employee => evaluateNode(root, employee))
 
+export const createEmptyFilter = (): FilterGroup => ({
+  id: crypto.randomUUID(),
+  kind: 'group',
+  logic: 'AND',
+  children: [],
+})
+
 export const describeMatchCount = (count: number): string =>
   `${count} match${count === 1 ? '' : 'es'}`
+
+export const describeFilter = (node: FilterNode): string => {
+  if (node.kind === 'condition') {
+    return fieldConfig[node.field].describe(node.operator, node.value)
+  }
+
+  if (node.children.length === 0) {
+    return 'No filter applied'
+  }
+
+  const joiner = node.logic === 'AND' ? ' and ' : ' or '
+
+  return node.children
+    .map(child => (child.kind === 'group' ? `(${describeFilter(child)})` : describeFilter(child)))
+    .join(joiner)
+}
