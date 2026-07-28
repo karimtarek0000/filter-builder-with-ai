@@ -1,6 +1,6 @@
 # Phase 1 Data Model: Advanced Filter Builder
 
-Derived from the spec's Key Entities section and FR-001–FR-018 (plus FR-025/FR-026, which are timing/layout behavior, not new entities — see the note below). All types are TypeScript, strict, no `any` (Constitution VII).
+Derived from the spec's Key Entities section and FR-001–FR-018 (plus FR-025/FR-026, which are timing/layout behavior, and FR-029–FR-034, which are internal-structure refactors — see the notes below; none of these add a new entity or wire-shape field). All types are TypeScript, strict, no `any` (Constitution VII).
 
 ## Employee
 
@@ -84,12 +84,20 @@ type FilterNode = FilterCondition | FilterGroup;
 ## Debounce and mobile layout (behavior, not stored state)
 
 Neither FR-025 (debounce) nor FR-026 (mobile remove-control placement) adds a field to `FilterCondition`/`FilterGroup` or changes the wire shape in [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) — both are transient UI concerns local to `FilterCondition.tsx`:
-- **Debounce (FR-025, mechanism shape FR-027/FR-028)**: whether a condition's edits commit immediately or after a ~300ms pause is a `boolean` fact of its `valueKind` (`text`/`number`/`day`/`year` → debounced; `select`/`month`/`none` → immediate), read from `fieldConfig.ts`. The in-progress keystroke value lives inside a single `useDebouncedValue` hook (`useDebouncedValue.ts`) until committed via `onChange`; the committed `FilterCondition.value` itself is unaffected (see [research.md](./research.md) §13, §15).
+- **Debounce (FR-025, mechanism shape FR-027/FR-028)**: whether a condition's edits commit immediately or after a ~300ms pause is a `boolean` fact of its `valueKind` (`text`/`number`/`day`/`year` → debounced; `select`/`month`/`none` → immediate), read from `fieldConfig.ts`. The in-progress keystroke value lives inside a single debounce hook (relocated to `src/hooks/useDebouncedCommit.ts`, see the Condition-row and shared-hook section below) until committed via `onChange`; the committed `FilterCondition.value` itself is unaffected (see [research.md](./research.md) §13, §15, §19).
 - **Mobile placement (FR-026)**: the remove control's position is a Tailwind responsive class on the same grid described in §12 of research.md — a pure CSS breakpoint change with no new prop or state (see [research.md](./research.md) §14).
+
+## Condition-row hook and shared debounce hook (behavior, not stored state — FR-029–FR-034, User Stories 10-13)
+
+None of these add a field to `FilterCondition`/`FilterGroup` or change any wire shape — they restructure where existing logic lives:
+- **`useConditionRow(condition, onChange)`** (FR-029/FR-030, [research.md](./research.md) §16) returns `{ config, valueKind, displayValue, validation, handleFieldChange, handleOperatorChange, handleValueChange }`. `FilterCondition.tsx` calls this once and renders only from its return value — no field/operator/value computation of its own.
+- **`ValueInput`** (FR-031, [research.md](./research.md) §17) is a `Record<ValueKind, Component>` lookup already implemented in `ValueInput.tsx`; `useConditionRow`'s `valueKind` is the key `FilterCondition.tsx` passes to it.
+- **`useDebouncedCommit`** (FR-034, [research.md](./research.md) §19) is the same hook as `useDebouncedValue` (FR-027), relocated to `src/hooks/useDebouncedCommit.ts` and exported from `src/hooks/index.ts` — a second module boundary (Constitution VIII) alongside `filter-builder/index.ts`. Its signature (`(value, onCommit, delayMs) → [localValue, setLocalValue]`) carries no filter/condition concept, so any feature can call it directly.
+- **`describeMatchCount(count: number): string`** (FR-032, [research.md](./research.md) §18) is a new plain function in `filterEngine.ts`, alongside the existing `describeFilter`. `FilterBuilder.tsx` calls it instead of formatting the pluralized match-count text itself.
 
 ## URL-encoded representation
 
-Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
+Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. A condition currently failing validation (see FilterCondition's validation rule above) is dropped from the tree immediately before encoding — it never appears in the URL until corrected (FR-013, clarified 2026-07-28). See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
 
 ## State transitions
 

@@ -61,3 +61,18 @@
   "one custom hook" as the target shape is a deliberate, narrow implementation hint at the user's
   explicit request, consistent with the existing Zod/URL-encoding precedent. No
   [NEEDS CLARIFICATION] markers were needed. All checklist items still pass after the update.
+- 2026-07-28 update: added a structural refactor of the condition-row and top-level filter-page
+  components, plus two project-wide conventions (User Stories 10-13, FR-029-FR-035,
+  SC-013-SC-016, two new edge cases): extracting the condition row's logic into one hook and its
+  value-input/debounce decisions into lookup maps, keeping the filter-page component to pure
+  composition, requiring every module to expose a single entry-file public API (also formalizing
+  existing project constitution Article V), and relocating the debounce hook to a shared,
+  project-level location outside the feature. This is a behavior-preserving, structure-only
+  refactor — no new field, operator, or user-facing capability is introduced, and all
+  previously-specified behavior is explicitly carried forward unchanged. No
+  [NEEDS CLARIFICATION] markers were needed: "strategy pattern" is interpreted as data-driven
+  lookup maps (already the project's established pattern) rather than class-based strategy
+  objects, and the shared hook's exact folder path is left as a planning-time decision. Optional
+  enhancement suggestions (consolidating field-driven logic, an import-boundary lint rule) are
+  recorded in Assumptions as non-required suggestions per the user's explicit invitation to
+  propose them. All checklist items still pass after the update.

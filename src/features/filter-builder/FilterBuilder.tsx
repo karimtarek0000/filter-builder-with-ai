@@ -1,6 +1,6 @@
 import { employees } from '../../data/employees'
 import EmployeeTable from './EmployeeTable'
-import { filterEmployees } from './filterEngine'
+import { describeMatchCount, filterEmployees } from './filterEngine'
 import FilterGroup from './FilterGroup'
 import { useFilterUrlSync } from './useFilterUrlSync'
 
@@ -16,8 +16,7 @@ const FilterBuilder = () => {
       <FilterGroup group={root} isRoot={true} onChange={setRoot} />
 
       <p className="text-gray-700 text-center">
-        Showing all employees ({visibleEmployees.length} match
-        {visibleEmployees.length === 1 ? '' : 'es'})
+        Showing all employees ({describeMatchCount(visibleEmployees.length)})
       </p>
 
       <EmployeeTable employees={visibleEmployees} />

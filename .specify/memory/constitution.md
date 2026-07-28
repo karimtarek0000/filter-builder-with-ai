@@ -1,32 +1,48 @@
 <!--
 Sync Impact Report
-Version change: [TEMPLATE] → 1.0.0 (initial ratification)
-Modified principles: n/a (first fill of template placeholders)
+Version change: 2.0.0 → 3.0.0 (MAJOR: the temporary Articles VIII–XI were merged
+  into Principles I, III, V, VI, redefining those principles' text — a backward
+  incompatible change per the amendment procedure's MAJOR criterion)
+Modified principles:
+  - I. Readability First → I. Readability — reworded to the newer, terser phrasing;
+    added a Gate line; dropped the "adding one more of an existing thing" sentence
+    (that concept now lives solely under VI, its more natural home)
+  - III. Minimal Scope (YAGNI) → III. Simplicity — reworded; added a Gate line;
+    kept the "no caller yet" rule from the original
+  - V. Clear Structure & Separation of Concerns → V. Layer Separation — same rule
+    set retained (150-line split, no-duplicated-rule, pattern-only-when-needed),
+    renamed title, added a Gate line
+  - VI. Extension Through Configuration, Not Branching → VI. Extension by Data —
+    same rule set retained (map-keyed branching, config-driven components, prop
+    drilling, interface-only-with-second-impl), renamed title, added a Gate line
+    and the explicit "union discriminant" exemption
 Added sections:
-  - I. Readability First
-  - II. Deliberate, Incremental Delivery
-  - III. Minimal Scope (YAGNI)
-  - IV. Surgical Changes Only
-  - V. Clear Structure & Separation of Concerns
-  - VI. Extension Through Configuration, Not Branching
-  - VII. Strict TypeScript
-  - Technology Stack & Environment Constraints
-  - Development Workflow & Quality Gates
-  - Governance
-Removed sections: none (template placeholders only)
+  - VIII. Module Boundaries — index.ts as public API (renumbered from XII)
+  - IX. Testing — logic files require tests when a runner is present (renumbered
+    from XIII)
+Removed sections:
+  - The standalone Articles VIII–XI (Readability/Simplicity/Layer
+    Separation/Extension by Data "(Article)" variants) — folded into I, III, V,
+    VI respectively rather than kept as duplicates, per explicit user instruction
+    ("you can use new one") after the redundancy was flagged
 Templates requiring updates:
-  - .specify/templates/plan-template.md — ✅ no change needed (Constitution Check gate is
-    already generic and reads from this file at plan time)
-  - .specify/templates/spec-template.md — ✅ no change needed (no principle-specific content)
-  - .specify/templates/tasks-template.md — ✅ no change needed (task categories are generic;
-    testing tasks remain OPTIONAL, consistent with "no test runner configured yet")
-  - .specify/templates/checklist-template.md — ✅ no change needed (no principle-specific content)
+  - .specify/templates/plan-template.md — ✅ no change needed (Constitution Check
+    gate is generic and reads from this file at plan time)
+  - .specify/templates/spec-template.md — ✅ no change needed (no principle-specific
+    content)
+  - .specify/templates/tasks-template.md — ⚠ pending: task template currently marks
+    all tests as OPTIONAL ("only include them if explicitly requested"); this is
+    correct today since no test runner is installed, but Article IX now makes
+    tests MANDATORY for logic files once a runner exists — revisit that template's
+    wording in the same change that adds Vitest/Jest
+  - .specify/templates/checklist-template.md — ✅ no change needed
   - .claude/skills/speckit-*/SKILL.md — ✅ reviewed, no CLAUDE-only or agent-specific
     references requiring generalization
-  - CLAUDE.md — ⚠ pending manual sync: this constitution is derived directly from CLAUDE.md's
-    "Code Principles" section; CLAUDE.md remains the file Claude Code reads at session start,
-    and the two MUST be kept in agreement on future amendments (see Governance)
-Follow-up TODOs: none
+  - CLAUDE.md — ⚠ pending manual sync: CLAUDE.md's "Code Principles" section does not
+    yet mention Module Boundaries (index.ts), Testing, or the Gate lines added to
+    Readability/Simplicity/Layer Separation/Extension by Data; keep the two files
+    in agreement per Governance
+Follow-up TODOs: none blocking
 -->
 
 # React Test Constitution
@@ -36,15 +52,16 @@ Follow-up TODOs: none
 Security, authentication, input validation, error handling, and type safety
 override every principle below and MUST NOT be traded away for simplicity.
 When two principles conflict, the one listed first in this document wins.
+Lower-numbered articles win any conflict.
 
-### I. Readability First
+### I. Readability
 
 Code MUST be written for the version a new contributor understands without
-asking, even if that version is a few lines longer. A clear function MUST
-NOT be split into small, scattered pieces merely for the sake of
-decomposition. Adding one more of an existing thing MUST mean adding data in
-one place, not editing logic across several files; if it requires edits in
-three or more files, the design MUST be reconsidered before proceeding.
+asking, even if that version is longer. A clear unit MUST NOT be split into
+small, scattered pieces merely for the sake of decomposition.
+
+**Gate**: in review, name the file a newcomer would struggle with. If there
+is one, the change is not done.
 
 **Rationale**: Code is read far more often than it is written; optimizing
 for a reader's first-pass understanding pays for itself every time the code
@@ -65,12 +82,13 @@ approach.
 **Rationale**: Silent assumptions and unconfirmed multi-step work are cheap
 to correct early and expensive to unwind after the fact.
 
-### III. Minimal Scope (YAGNI)
+### III. Simplicity
 
-Only what the current feature needs MUST be built — no config options or
-extension points for features that do not yet exist. An abstraction used in
-only one place MUST be inlined. A utility with no current caller MUST NOT be
-written.
+Build only what the current feature needs. No config options, extension
+points, or abstractions for features that do not exist yet. A utility with
+no current caller MUST NOT be written.
+
+**Gate**: an abstraction used in exactly one place fails.
 
 **Rationale**: Speculative flexibility accrues maintenance cost without ever
 paying for itself, and it obscures the actual shape of the problem being
@@ -87,7 +105,7 @@ be left alone unless its removal was explicitly requested.
 **Rationale**: Unrelated cleanup bundled into a diff makes review harder and
 increases the chance of an unintended regression slipping through.
 
-### V. Clear Structure & Separation of Concerns
+### V. Layer Separation
 
 Business logic MUST live in plain functions with no framework imports;
 components call that logic, they do not contain it. Data fetching MUST live
@@ -98,12 +116,14 @@ known pattern (factory, strategy, adapter) MUST be used only once the
 complexity it addresses already exists, not for complexity anticipated
 later.
 
+**Gate**: the plan must name which files hold logic and which hold UI.
+
 **Rationale**: Consistent structural boundaries keep logic testable and keep
 components focused on rendering.
 
-### VI. Extension Through Configuration, Not Branching
+### VI. Extension by Data
 
-Handling one more of something the system already supports MUST mean adding
+Adding one more of something the system already handles MUST mean adding
 data, not branching logic; needing a new `if` in three places signals a
 design that MUST be reconsidered before writing it. Three or more branches
 that carry real logic and are likely to grow MUST be expressed as a map
@@ -114,6 +134,10 @@ a prop that exists solely to be passed further down MUST instead be a
 single handler object or use the framework's context mechanism. An
 interface or abstract type MUST NOT be introduced unless a second
 implementation exists today.
+
+**Gate**: an `if` comparing against a domain value — a field name, an
+operator name, a status string — inside a component fails. Branching on a
+union's discriminant is not covered by this article.
 
 **Rationale**: Data-driven extension keeps the system's growth points in
 one place instead of scattering conditional logic across the codebase.
@@ -129,6 +153,28 @@ added for cases the compiler already guarantees.
 **Rationale**: The type system is the cheapest, most reliable place to catch
 a whole class of errors; duplicating that guarantee at runtime adds cost
 without adding safety.
+
+### VIII. Module Boundaries
+
+A module exposes its public API through `index.ts`. Anything not exported
+there is internal and may change freely.
+
+**Gate**: a file inside a module importing from that module's own `index`
+fails. Wildcard re-exports (`export *`) fail.
+
+**Rationale**: A single declared entry point per module keeps internal
+reshuffling from becoming a cross-module breaking change.
+
+### IX. Testing
+
+If the project has a test runner installed, logic files with no framework
+imports MUST ship with tests in the same change. UI changes ship with a
+manual repro step instead.
+
+**Gate**: a logic file with no matching test file fails.
+
+**Rationale**: Logic with no framework imports is the cheapest code in the
+repo to test and the easiest to regress silently without one.
 
 ## Technology Stack & Environment Constraints
 
@@ -164,6 +210,14 @@ without adding safety.
   limitation MUST be stated explicitly rather than claiming success from
   type-checks alone.
 
+## Quality Gates
+
+| Gate  | Requirement                | Enforcement    |
+|-------|-----------------------------|----------------|
+| Build | Passes                      | `npm run build` |
+| Lint  | Zero errors, zero warnings  | `npm run lint`  |
+| Test  | 100% passing                | test runner (once installed; see Article IX) |
+
 ## Governance
 
 This constitution supersedes ad-hoc conventions for this repository.
@@ -185,4 +239,9 @@ for every feature plan. Complexity that violates Principle III or V MUST be
 justified in that plan's Complexity Tracking table rather than merged
 silently.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-27
+This constitution outranks personal preference and agent defaults. Any
+exception requires a line in Complexity Tracking naming the article and the
+reason. Amendments come from violations observed in review, not from
+problems anticipated in advance.
+
+**Version**: 3.0.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-28

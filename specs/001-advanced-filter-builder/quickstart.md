@@ -102,6 +102,39 @@ This story is verified by reading code, not by UI interaction — it's a maintai
 5. In the browser, start typing into a debounced field (e.g. `name`, `contains`), then switch the condition's field to something else before the debounce delay elapses.
 6. **Expect**: the value input clears to match the new field with no stale or flickering leftover text from the in-flight edit. (Scenario 3)
 
+## Story 10 — Condition-row logic as one hook, value input as a lookup map (P10)
+
+This story is verified by reading code, not by UI interaction — it's a maintainability refactor with no user-visible change.
+
+1. Open `src/features/filter-builder/FilterCondition.tsx`.
+2. **Expect**: the component's body renders from values and handlers returned by one hook call (`useConditionRow`) — no field-change, operator-change, or value-commit logic computed inline, and no `if`/`switch` branching on a field name, operator name, or value kind. (Scenario 1, FR-029)
+3. Open `src/features/filter-builder/ValueInput.tsx`.
+4. **Expect**: the value-kind-to-input-control decision is a lookup map (`inputsByValueKind`), not a conditional; the decision of whether an edit commits immediately or is staged/debounced comes from `fieldConfig.ts`'s `isDebouncedValueKind`, not a hardcoded field/operator name check. (Scenario 2, FR-030/FR-031)
+5. Re-run Story 1 (Scenarios 1-5), Story 6 (inline validation), and Story 9 (debounce) in the browser.
+6. **Expect**: every behavior works exactly as before this refactor — no regression. (Scenario 3, FR-035)
+
+## Story 11 — Top-level filter page as pure composition (P11)
+
+This story is verified by reading code, not by UI interaction.
+
+1. Open `src/features/filter-builder/FilterBuilder.tsx`.
+2. **Expect**: every line either renders a child component or calls a hook/function defined elsewhere (`useFilterUrlSync`, `filterEmployees`, `describeMatchCount`) — no inline string formatting (e.g. the pluralized match-count message) or other derivation in the component body. (Scenario 1, FR-032)
+3. In the browser, confirm the match-count sentence, table filtering, and URL sync still work exactly as before (re-run Story 1 Scenario 1 and Story 4 Scenario 1). (Scenario 2, FR-035)
+
+## Story 12 — One entry point per module (P12)
+
+1. Search the codebase (outside `src/features/filter-builder/`) for any import reaching into a file nested inside that feature (e.g. `from '../features/filter-builder/FilterBuilder'` or `.../fieldConfig`).
+2. **Expect**: no such import exists — `src/App.tsx` and any other outside consumer import only from `src/features/filter-builder` (its `index.ts`). (Scenario 1, FR-033)
+3. Open every file inside `src/features/filter-builder/` and inside `src/hooks/`.
+4. **Expect**: no file imports from its own module's `index.ts` (no re-entry), and neither `index.ts` uses a wildcard `export *`. (Scenario 2, FR-033)
+
+## Story 13 — Debounce hook reusable outside this feature (P13)
+
+1. Open `src/hooks/useDebouncedCommit.ts` (and its `src/hooks/index.ts`).
+2. **Expect**: the hook's signature and implementation reference no filter-specific concept (no `Field`, `Operator`, `FilterCondition` import) — it takes an arbitrary value, a commit callback, and a delay. (Scenario 1, FR-034)
+3. In the browser, re-run Story 1 Scenario 5 (`salary`) and the `name`/`hireDate` day/year debounced inputs.
+4. **Expect**: all continue to debounce exactly as before the relocation — typed value shown immediately, committed once after the pause, no dangling timer after switching fields or unmounting. (Scenario 2, FR-034/FR-035)
+
 ## Zero-match edge case
 
 1. Build a filter that matches no employees (e.g., `salary gt 999999`).

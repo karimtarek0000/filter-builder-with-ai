@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 
-export const useDebouncedValue = <T>(value: T, onCommit: (value: T) => void, delayMs: number) => {
+export const useDebouncedCommit = <T>(value: T, onCommit: (value: T) => void, delayMs: number) => {
   const [localValue, setLocalValue] = useState(value)
+  const [previousValue, setPreviousValue] = useState(value)
+
+  if (value !== previousValue) {
+    setPreviousValue(value)
+    setLocalValue(value)
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {

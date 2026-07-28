@@ -55,14 +55,15 @@ Field definitions match [data-model.md](../data-model.md) exactly:
 
 `id` values are round-tripped as opaque strings; a decoder does not need to validate their format beyond "present and a string" (a decoder MAY regenerate fresh ids instead — the tree's structure and content is the part of the contract, not id stability).
 
-A condition's `value` is encoded exactly as entered, even if it currently fails the field/operator's Zod validation (FR-021) — condition-value validity (FR-022, [data-model.md](../data-model.md) → FilterCondition validation rules) is a derived, render-time concern, not part of this wire format, so an in-progress invalid value round-trips unchanged and is re-validated (and re-shown as an inline error, if still invalid) on load rather than being stripped from the URL.
+A condition whose value currently fails the field/operator's Zod validation (FR-021/FR-022) is **excluded** from the encoded tree — it is dropped from the `children` array of its parent group before encoding, the same way it's excluded from matching (FR-013, clarified 2026-07-28; [data-model.md](../data-model.md) → FilterCondition validation rules). This is a filter step applied immediately before step 1 of the encoding rule below, not a property of the stored tree itself: the in-progress invalid value stays in local component/hook state (so the user keeps seeing what they typed and its inline error) and reappears in the URL automatically once it becomes valid. A group that loses all its children this way still encodes as an empty group (vacuously satisfied, same as any other empty group).
 
 ## Encoding rule
 
 `encodeFilterToParam(root: FilterGroup): string`:
-1. `JSON.stringify(root)`
-2. base64-encode the UTF-8 bytes
-3. Make URL-safe: `+` → `-`, `/` → `_`, and strip trailing `=` padding
+1. Recursively drop any condition whose value currently fails `validateConditionValue` (see previous paragraph) from every group's `children`.
+2. `JSON.stringify` the resulting tree.
+3. base64-encode the UTF-8 bytes.
+4. Make URL-safe: `+` → `-`, `/` → `_`, and strip trailing `=` padding.
 
 ## Decoding rule (must never throw)
 

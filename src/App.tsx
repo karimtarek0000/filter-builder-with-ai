@@ -1,4 +1,4 @@
-import FilterBuilder from "./features/filter-builder/FilterBuilder"
+import { FilterBuilder } from "./features/filter-builder"
 
 const App = () => {
   return (

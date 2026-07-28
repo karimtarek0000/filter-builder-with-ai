@@ -61,3 +61,6 @@ export const evaluateNode = (node: FilterNode, employee: Employee): boolean => {
 
 export const filterEmployees = (root: FilterGroup, employees: Employee[]): Employee[] =>
   employees.filter(employee => evaluateNode(root, employee))
+
+export const describeMatchCount = (count: number): string =>
+  `${count} match${count === 1 ? '' : 'es'}`

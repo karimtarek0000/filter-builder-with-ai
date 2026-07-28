@@ -11,17 +11,24 @@ description: "Task list for Advanced Filter Builder"
 
 **Tests**: No test runner is configured in this project (see plan.md → Technical Context → Testing). No test tasks are included; each user story instead references its manual repro steps in [quickstart.md](./quickstart.md), per the constitution's "manual repro step instead" rule.
 
-**Organization**: Tasks are grouped by user story (spec.md priorities P1–P8) so each story is independently implementable and testable.
+**Organization**: Tasks are grouped by user story (spec.md priorities P1–P13) so each story is independently implementable and testable.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: Maps the task to US1–US7 from spec.md
+- **[Story]**: Maps the task to US1–US13 from spec.md
 - File paths are exact, per plan.md's Project Structure
 
 ## Path Conventions
 
-Single Vite + React project (existing scaffold). All new code lives under `src/data/` and `src/features/filter-builder/`, per plan.md.
+Single Vite + React project (existing scaffold). Feature code lives under `src/data/` and `src/features/filter-builder/`; User Stories 12-13 add a second, sibling module at `src/hooks/` for the relocated debounce hook, per plan.md.
+
+## Status Note (2026-07-28)
+
+Phases 1-11 (User Stories 1-8) below were generated and completed against an earlier version of plan.md/spec.md. Phases 12-16 (User Stories 9-13) were added in this pass to cover the maintainability-refactor requirements (FR-027–FR-035) added to spec.md/plan.md since. A codebase check while generating Phases 12-16 found two things worth confirming before implementing:
+
+- `src/features/filter-builder/ValueInput.tsx` and `src/features/filter-builder/index.ts` already exist and already satisfy most of User Story 10 (value-kind lookup map) and User Story 12 (module entry point) — their tasks below are phrased as verification, not creation.
+- `src/features/filter-builder/filterEngine.ts` currently has **no** `describeFilter` function and `FilterBuilder.tsx` renders no plain-language sentence at all, even though Phase 5 (User Story 3, T014) is marked complete and research.md §18 assumes `describeFilter` already exists as `describeMatchCount`'s sibling. This looks like a pre-existing gap (FR-012) unrelated to Stories 9-13 — flagged in T053 below rather than silently folded into Story 11's scope.
 
 ---
 
@@ -200,6 +207,95 @@ Single Vite + React project (existing scaffold). All new code lives under `src/d
 
 ---
 
+## Phase 12: User Story 9 - Maintain debounced value editing confidently (Priority: P9)
+
+**Goal**: The debounce mechanism behind FR-025 (immediate typing feedback, delayed filter commit, correct re-sync on external value changes) lives in one clearly-named hook, not spread across several pieces of component state — with no change to any previously-specified behavior.
+
+**Independent Test**: Read `useDebouncedValue.ts` and confirm the mechanism is one cohesive unit; in the browser, start typing into a debounced field, switch the condition's field before the delay elapses, and confirm the value resets cleanly with no stale leftover text — see [quickstart.md](./quickstart.md) → Story 9.
+
+### Implementation for User Story 9
+
+- [X] T047 [US9] In `src/features/filter-builder/useDebouncedValue.ts`, add re-sync behavior: when the externally-committed `value` changes for a reason other than this hook's own `onCommit` call (e.g., the condition's field is switched and its value is cleared), `localValue` MUST adopt the new external value rather than keep showing the stale in-flight edit — the hook's current `useState(value)` initializer only seeds `localValue` once and never re-adopts a later external change, which is Scenario 3's gap. Keep the existing immediate-display/delayed-commit behavior for `FilterCondition.tsx`'s own edits unchanged — implements FR-027 Scenario 3, FR-028 (depends on the existing hook; no new file)
+- [X] T048 [US9] Validate per [quickstart.md](./quickstart.md) → Story 9: confirm the debounce mechanism reads as one named unit when the hook file is opened (Scenario 1), re-run Story 1 Scenario 5 (salary debounce) and Story 8 (mobile remove control) to confirm no regression (Scenario 2, FR-028), and confirm switching a debounced field mid-edit clears cleanly with no stale/duplicate state (Scenario 3) (depends on T047)
+
+**Checkpoint**: User Story 9's debounce hook is self-contained and behavior-preserving.
+
+---
+
+## Phase 13: User Story 10 - Understand a condition row's code without tracing branches (Priority: P10)
+
+**Goal**: `FilterCondition.tsx`'s field-change, operator-change, and value-commit handling are owned by one custom hook; the component renders only from that hook's return value, with no field/operator/value-kind branching of its own, and the debounced-or-not decision comes from `fieldConfig`, not a hardcoded check.
+
+**Independent Test**: Read `FilterCondition.tsx` and confirm it contains no conditional logic keyed on a field, operator, or value-kind name — only rendering from a single hook call's return value — see [quickstart.md](./quickstart.md) → Story 10.
+
+### Implementation for User Story 10
+
+- [X] T049 [US10] Create `src/features/filter-builder/useConditionRow.ts`: a hook taking `(condition, onChange)` that resolves `config`/`valueKind` from `fieldConfig`, calls `useDebouncedValue` for debounced value kinds, runs `validateConditionValue`, and owns `handleFieldChange`/`handleOperatorChange`/`handleValueChange` — including FR-005's reset-operator-and-clear-value-on-field-change rule and the clear-value-on-hireDate-operator-change rule — returning `{ config, valueKind, displayValue, validation, handleFieldChange, handleOperatorChange, handleValueChange }`; the debounced-vs-immediate commit decision inside `handleValueChange` MUST read `isDebouncedValueKind(valueKind)` from `fieldConfig` rather than compare against a field/operator name directly — per data-model.md → "Condition-row hook and shared debounce hook", research.md §16, implements FR-029, FR-030 (depends on the existing `fieldConfig.ts`, `validation.ts`, `useDebouncedValue.ts`)
+- [X] T050 [US10] Update `src/features/filter-builder/FilterCondition.tsx` to call `useConditionRow(condition, onChange)` once and render solely from its returned values and handlers, removing the component's own `fieldConfig`/`valueKindForOperator`/`isDebouncedValueKind`/`useDebouncedValue`/`validateConditionValue` calls and its inline `handleFieldChange`/`handleOperatorChange`/`handleValueChange` — implements FR-029 (depends on T049)
+- [X] T051 [US10] Confirm `src/features/filter-builder/ValueInput.tsx`'s `inputsByValueKind` lookup map (already implemented) and `FilterCondition.tsx`'s `<ValueInput valueKind={...} />` usage together leave no per-field/per-value-kind conditional rendering in the component body — implements FR-031, SC-015 (depends on T050; no new file expected)
+- [X] T052 [US10] Validate per [quickstart.md](./quickstart.md) → Story 10: confirm `FilterCondition.tsx` has no field/operator/value-kind branching (Scenario 1), confirm the debounce decision is config-driven via `isDebouncedValueKind` (Scenario 2), and re-run Story 1, Story 6 (validation), and Story 9 (debounce) in the browser to confirm no regression (Scenario 3, FR-035) (depends on T051)
+
+**Checkpoint**: `FilterCondition.tsx` is a pure renderer over `useConditionRow`'s output.
+
+---
+
+## Phase 14: User Story 11 - Understand the filter page's code as pure composition (Priority: P11)
+
+**Goal**: `FilterBuilder.tsx` contains no logic beyond composing `useFilterUrlSync`, `filterEmployees`, and its child components — the pluralized match-count text is derived elsewhere and simply rendered.
+
+**Independent Test**: Read `FilterBuilder.tsx` and confirm every line either renders a child component or calls a hook/function defined elsewhere — see [quickstart.md](./quickstart.md) → Story 11.
+
+### Implementation for User Story 11
+
+- [X] T053 [US11] Add `describeMatchCount(count: number): string` to `src/features/filter-builder/filterEngine.ts`, returning the pluralized match text (e.g. `"1 match"`, `"40 matches"`) — per research.md §18, implements FR-032. **Before starting**: `filterEngine.ts` currently has no `describeFilter` function and `FilterBuilder.tsx` renders no plain-language filter sentence (see Status Note above) even though research.md §18 describes `describeMatchCount` as sitting "alongside the existing `describeFilter`." Confirm with the user whether FR-012/Story 3's sentence needs to be (re)implemented as part of this pass, or tracked separately, before assuming this task's scope is match-count text only (depends on the existing `filterEngine.ts`)
+- [X] T054 [US11] Update `src/features/filter-builder/FilterBuilder.tsx` to call `describeMatchCount(visibleEmployees.length)` in place of its inline pluralized match-count string, so the component's body is limited to `useFilterUrlSync` (state), `filterEmployees` (derivation), and rendering `describeMatchCount`'s result plus `FilterGroup`/`EmployeeTable` — implements FR-032 (depends on T053)
+- [X] T055 [US11] Validate per [quickstart.md](./quickstart.md) → Story 11: confirm every line in `FilterBuilder.tsx` either renders a child component or calls a hook/function defined elsewhere (Scenario 1), and re-run Story 1 Scenario 1 and Story 4 Scenario 1 in the browser to confirm no regression (Scenario 2, FR-035) (depends on T054)
+
+**Checkpoint**: `FilterBuilder.tsx` reads as pure composition.
+
+---
+
+## Phase 15: User Story 12 - Import the feature through one stable entry point (Priority: P12)
+
+**Goal**: Everything `filter-builder` exposes to the rest of the app is importable from its `index.ts` alone, and no file inside the feature imports back from that same entry file.
+
+**Independent Test**: From outside `filter-builder`, confirm every consumed symbol imports from the feature's entry file only; confirm no internal file re-imports it — see [quickstart.md](./quickstart.md) → Story 12.
+
+### Implementation for User Story 12
+
+- [X] T056 [US12] Audit `src/features/filter-builder/index.ts` (already exists, exporting `FilterBuilder` only): confirm `src/App.tsx` imports exclusively from `./features/filter-builder` (never a nested file such as `./features/filter-builder/FilterBuilder`), and confirm no file inside `src/features/filter-builder/` imports from its own `index.ts` — per plan.md Constitution Check → Article VIII, implements FR-033 (depends on the existing `index.ts`; no new file expected)
+- [X] T057 [US12] Validate per [quickstart.md](./quickstart.md) → Story 12: search the codebase outside `filter-builder` for any deep import into the feature (Scenario 1), and confirm no internal file imports from that feature's own entry file and neither `index.ts` in the project uses a wildcard `export *` (Scenario 2) (depends on T056)
+
+**Checkpoint**: `filter-builder` has exactly one public entry point.
+
+---
+
+## Phase 16: User Story 13 - Reuse debounced editing outside this feature (Priority: P13)
+
+**Goal**: The debounce hook lives outside `filter-builder`, in its own `src/hooks/` module with its own entry point, under a name that carries no filter-specific meaning, and is importable by any feature.
+
+**Independent Test**: From outside `filter-builder`, import the hook from `src/hooks` and use it to delay an arbitrary callback with no filter concept involved — see [quickstart.md](./quickstart.md) → Story 13.
+
+### Implementation for User Story 13
+
+- [X] T058 [US13] Create `src/hooks/useDebouncedCommit.ts`: relocate `src/features/filter-builder/useDebouncedValue.ts`'s implementation here (including T047's re-sync fix), renamed to describe what it does generically (`(value, onCommit, delayMs) → [localValue, setLocalValue]`), with no `Field`/`Operator`/`FilterCondition` reference — per research.md §19, implements FR-034 (depends on T047)
+- [X] T059 [US13] Create `src/hooks/index.ts` exporting `useDebouncedCommit` as this module's sole public symbol, mirroring `filter-builder/index.ts`'s convention — implements FR-033 (second module boundary) (depends on T058)
+- [X] T060 [US13] Update `src/features/filter-builder/useConditionRow.ts` to import `useDebouncedCommit` from `../../hooks` (the new module's entry file) instead of the local `useDebouncedValue.ts`, then delete `src/features/filter-builder/useDebouncedValue.ts` — implements FR-033, FR-034 (depends on T059, T049)
+- [X] T061 [US13] Validate per [quickstart.md](./quickstart.md) → Story 13: confirm `src/hooks/useDebouncedCommit.ts` and `src/hooks/index.ts` reference no filter-specific concept (Scenario 1), and re-run Story 1 Scenario 5 plus the `name`/`hireDate` day/year debounced inputs in the browser to confirm debounce behavior is unchanged (Scenario 2, FR-034/FR-035) (depends on T060)
+
+**Checkpoint**: All thirteen user stories are independently functional; the debounce hook is reusable outside `filter-builder`.
+
+---
+
+## Phase 17: Polish & Cross-Cutting Concerns (User Stories 9-13)
+
+**Purpose**: Repo-wide quality gates and full manual validation after the maintainability refactor.
+
+- [X] T062 [P] Run `npm run build` (type-check + production build) and `npm run lint` after the Stories 9-13 changes; fix any errors surfaced, per CLAUDE.md's quality gates
+- [X] T063 Re-run the complete [quickstart.md](./quickstart.md) walkthrough end-to-end — Stories 1-13, the zero-match edge case, and the back-button regression watch — and confirm every expectation still holds
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -215,8 +311,14 @@ Single Vite + React project (existing scaffold). All new code lives under `src/d
 - **User Story 7 (Phase 9)**: Depends on User Story 1 (`EmployeeTable.tsx` to extend) and User Story 3/5 (`FilterGroup.tsx`'s `isRoot` prop from T012, `FilterCondition.tsx`'s per-operator `valueKind` from T025); independent of US6's own changes
 - **User Story 8 (Phase 10)**: Depends on User Story 7 (extends the fixed-column grid `FilterCondition.tsx` from T036); independent of US2–US6's own changes
 - **Polish (Phase 11)**: Depends on all eight user stories
+- **User Story 9 (Phase 12)**: Depends on the existing `useDebouncedValue.ts` (from US1's T041); independent of US2–US8
+- **User Story 10 (Phase 13)**: Depends on User Story 9 (`useConditionRow.ts` calls `useDebouncedValue`, so T047's re-sync fix should land first) and the existing `fieldConfig.ts`/`validation.ts`/`ValueInput.tsx`
+- **User Story 11 (Phase 14)**: Depends on the existing `filterEngine.ts`/`FilterBuilder.tsx`; independent of US9-US10's own changes
+- **User Story 12 (Phase 15)**: Depends on the existing `filter-builder/index.ts`; independent of US9-US11's own changes
+- **User Story 13 (Phase 16)**: Depends on User Story 9 (T047's re-sync fix, relocated in T058) and User Story 10 (`useConditionRow.ts` from T049, updated in T060)
+- **Polish (Phase 17)**: Depends on User Stories 9-13
 
-Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above.
+Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above. The same is true of US9–US13: each is a maintainability refactor of files already built by US1/US6/US7, not a disjoint file set.
 
 ### Within Each Phase
 
@@ -229,6 +331,11 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US7: T034 needs T002; T035 needs T034; T036 needs T025; T037 needs T012; T038 needs T035, T036, T037
 - US1 (debounce addition): T041 needs T010; T042 needs T041
 - US8: T043 needs T036; T044 needs T043
+- US9: T047 needs the existing `useDebouncedValue.ts`; T048 needs T047
+- US10: T049 needs T047 (and the existing `fieldConfig.ts`/`validation.ts`); T050 needs T049; T051 needs T050; T052 needs T051
+- US11: T053 needs the existing `filterEngine.ts`; T054 needs T053; T055 needs T054
+- US12: T056 needs the existing `index.ts`; T057 needs T056
+- US13: T058 needs T047; T059 needs T058; T060 needs T059 and T049; T061 needs T060
 
 ### Parallel Opportunities
 
@@ -237,7 +344,8 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US5: T021 (`employees.ts`) and T022 (`types.ts`) can run in parallel; once T023 lands, T025 (`FilterCondition.tsx`) and T026 (`EmployeeTable.tsx`) can run in parallel
 - US6: once T030 (`validation.ts`) lands, T031 (`filterEngine.ts`) and T032 (`FilterCondition.tsx`) touch different files and can run in parallel
 - US7: T034 (`format.ts`), T036 (`FilterCondition.tsx` grid), and T037 (`FilterGroup.tsx` border) touch three different files and can all run in parallel; T035 needs T034 first
-- No other tasks are marked [P] — the remaining chain is a sequence of edits to a small, shared set of files
+- Polish (Phase 17): T062 is marked [P] (independent of T063)
+- No other tasks in Phases 12-16 are marked [P] — each user story's tasks are a sequence of edits to the same one or two files
 
 ---
 
@@ -302,14 +410,22 @@ Task: "Add a left border + indentation for nested groups in src/features/filter-
 9. User Story 1 debounce addition → add ~300ms debounce for text/number/day/year value edits → validate keystroke behavior → demo
 10. User Story 8 → add mobile remove-control placement below the `md` breakpoint → validate mobile/desktop layouts → demo
 11. Polish → build/lint clean, full quickstart pass
+12. User Story 9 → harden the debounce hook's external re-sync → validate no regression → demo (code-review only)
+13. User Story 10 → consolidate condition-row logic into `useConditionRow` → validate no regression → demo (code-review only)
+14. User Story 11 → make `FilterBuilder.tsx` pure composition via `describeMatchCount` → validate no regression → demo (code-review only)
+15. User Story 12 → audit the feature's single entry point → validate import boundaries → demo (code-review only)
+16. User Story 13 → relocate the debounce hook to `src/hooks/` → validate reusability + no regression → demo
+17. Polish → build/lint clean, full quickstart pass (Stories 1-13)
 
 ---
 
 ## Notes
 
 - [P] tasks touch different files with no dependency on an incomplete task
-- [Story] labels map tasks to spec.md's US1–US8 for traceability
+- [Story] labels map tasks to spec.md's US1–US13 for traceability
 - No test runner is configured; every story's independent test is a manual quickstart.md walkthrough instead of automated tests
+- Stories 9-11 and 12 are read-the-code / audit-only user stories — their "Independent Test" is a code review plus a browser regression check, not new user-visible behavior
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently before moving on
+- Before starting Phase 13 (US10), resolve T053's flagged question about the missing `describeFilter`/FR-012 sentence — it affects how confidently `FilterBuilder.tsx` can be called "pure composition" in Phase 14 (US11)
 </content>
