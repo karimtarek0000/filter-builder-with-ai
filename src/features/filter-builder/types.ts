@@ -1,24 +1,28 @@
-export type Field = 'name' | 'country' | 'salary' | 'isActive' | 'hireDate'
+import type { ZodType } from 'zod'
 
-export type Operator =
-  | 'contains'
-  | 'equals'
-  | 'is'
-  | 'is_not'
-  | 'gt'
-  | 'lt'
-  | 'eq'
-  | 'is_true'
-  | 'is_false'
-  | 'day_is'
-  | 'month_is'
-  | 'year_is'
+export type ValueKind = 'text' | 'number' | 'select' | 'day' | 'month' | 'year' | 'none'
+
+export interface OperatorConfig<TRow> {
+  label: string
+  valueKind: ValueKind
+  options?: readonly string[]
+  schema?: ZodType
+  match: (row: TRow, value: unknown) => boolean
+  describe: (value: unknown) => string
+}
+
+export interface FieldDef<TRow> {
+  label: string
+  operators: Record<string, OperatorConfig<TRow>>
+}
+
+export type FilterFieldConfig<TRow> = Record<string, FieldDef<TRow>>
 
 export interface FilterCondition {
   id: string
   kind: 'condition'
-  field: Field
-  operator: Operator
+  field: string
+  operator: string
   value: string | number | undefined
 }
 
