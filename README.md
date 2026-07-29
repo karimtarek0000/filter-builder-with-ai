@@ -21,7 +21,7 @@ A Notion/Linear-style filter builder for the employee data table: users compose 
 
 **Built with**
 
-- **[spec-kit](specs/001-advanced-filter-builder/)** — `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, and `contracts/` drove the feature from requirements to implementation
+- **spec-kit** — `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, and `contracts/` drove the feature from requirements to implementation
 - **Skills** — `speckit-specify` → `speckit-plan` → `speckit-tasks` → `speckit-implement` for the spec-driven workflow
 - **Subagents** — `unit-test-writer` (Vitest/RTL coverage per component/hook/engine) and `e2e-test-writer` (Playwright flows) for test authoring
 - **MCPs** — Context7 for up-to-date library docs, Playwright for browser-driven E2E verification
