@@ -1,6 +1,6 @@
 # Quickstart: Advanced Filter Builder
 
-Validation guide for the feature once implemented. No test runner is configured in this project (see [plan.md](./plan.md) Technical Context → Testing), so this is the manual verification path — run it before calling any implementation task done.
+Validation guide for the feature once implemented. As of User Story 19, this project has Vitest, React Testing Library, and Playwright configured (see [plan.md](./plan.md) Technical Context → Testing) — `npm run test` and `npm run e2e` are the fast way to confirm Stories 1-19 still work. The manual walkthrough below remains useful for exploring a story interactively or verifying something the automated suite doesn't cover (e.g., visual scanning in Story 7).
 
 ## Prerequisites
 
@@ -182,6 +182,15 @@ This story is verified by reading the file tree, not by UI interaction.
 3. Open `src/features/filter-builder/components/FilterCondition.tsx` (or any file using `useConditionRow`).
 4. **Expect**: it imports `useConditionRow` from `../hooks` (the subfolder's entry file), not `../hooks/useConditionRow`. (Scenarios 1-2, FR-044)
 
+## Story 19 — Automated tests (P19)
+
+1. Run `npm run test`.
+2. **Expect**: it passes, exercising `filterEngine.ts`, `validation.ts`, `urlState.ts`, and every hook/component under `hooks/`/`components/` (both `filter-builder/` and `src/hooks/`) via rendered-component interaction, without starting a browser. (Scenarios 1-3, FR-045/FR-046)
+3. Run `npm run e2e`.
+4. **Expect**: it starts the dev server and drives a real browser through single-condition filtering, AND/OR combination, nested groups, URL share/restore/fallback, `hireDate` component filtering, inline validation, mobile remove-control placement, and Clear All — one spec per flow in `e2e/`. (Scenarios 4-5, FR-047)
+5. Deliberately break a previously-specified behavior (e.g., comment out the `undefined`-value vacuous-match check in `evaluateNode`) and re-run `npm run test`.
+6. **Expect**: the corresponding test fails and names the behavior it was checking, rather than the regression only showing up by re-running the manual walkthrough. Revert the change afterward. (Scenario 6, SC-024)
+
 ## Accessibility spot-check (FR-038, SC-018)
 
 1. Using only the keyboard (Tab/Shift+Tab to move focus, Enter/Space to activate, arrow keys inside a `<select>`), add a condition, add a nested group, remove a condition, toggle a group's AND/OR, edit a value, and click Clear All.
@@ -197,4 +206,4 @@ This story is verified by reading the file tree, not by UI interaction.
 ## Regression watch
 
 - After any edit, re-check the browser back button does **not** step through prior filter states (URL updates use `replaceState`, not `pushState` — clarified requirement).
-- Run `npm run build` (type-check + build) and `npm run lint` — both must pass per the constitution's quality gates.
+- Run `npm run build` (type-check + build), `npm run lint`, `npm run test`, and `npm run e2e` — all four must pass per the constitution's quality gates.

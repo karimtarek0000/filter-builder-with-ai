@@ -130,6 +130,10 @@ Not a new entity or field: every interactive element already in the tree (add/re
 
 Not a new entity — it's the `FilterGroup` tree (root only; it recursively contains any nested group) run through `JSON.stringify` then URL-safe base64. A condition currently failing validation (see FilterCondition's validation rule above) is dropped from the tree immediately before encoding — it never appears in the URL until corrected (FR-013, clarified 2026-07-28). `decodeFilterFromParam` now takes the caller's `FilterFieldConfig<TRow>` as a parameter and validates a decoded condition's `field`/`operator` against that config's own keys, rather than a hardcoded Employee field/operator list (FR-039, [research.md](./research.md) §23) — the wire shape itself (field names as strings, operator names as strings) is unchanged. See [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) for the exact wire shape and validation rules applied on decode (FR-013–FR-015).
 
+## Automated test coverage (behavior, not stored state — FR-045–FR-048, User Story 19)
+
+Not a new entity, field, or wire-shape change: tests assert against the types and functions already documented above (`evaluateNode`, `describeFilter`, `describeMatchCount`, `createEmptyFilter`, `validateConditionValue`, `encodeFilterToParam`/`decodeFilterFromParam`) and the components/hooks that consume them, exactly as the app itself calls them (FR-048 — no test-only export, flag, or code path is added). See [research.md](./research.md) §28 for file placement, the fake-timer approach to debounce testing, and how FR-047's end-to-end coverage is distributed across the eighteen prior user stories.
+
 ## State transitions
 
 There is no persisted/backend state machine — the only "transitions" are in-memory tree edits, each producing a new immutable tree and, downstream, a new URL:

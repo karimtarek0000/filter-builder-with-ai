@@ -106,3 +106,17 @@
   subfolder names) as deliberate, narrow implementation hints for a maintainability-focused
   developer story, rather than a gap in "no implementation details." All checklist items still
   pass after the update.
+- 2026-07-29 update: added automated test coverage for the whole feature (User Story 19,
+  FR-045-FR-048, SC-023/SC-024, a new edge case), using the project's already-installed Vitest,
+  React Testing Library, and Playwright setup (`vitest.config.ts`, `src/test/setup.ts`,
+  `playwright.config.ts`, `e2e/`). No [NEEDS CLARIFICATION] markers were needed: the scope
+  question (cover every existing user story vs. a representative subset) was resolved directly
+  with the user and recorded under "Session 2026-07-29" in Clarifications — every user story
+  (US1-US18) gets at least one traceable automated test, split between unit/component tests
+  (engine, validation, URL encode/decode, hooks, components) and end-to-end tests (full
+  browser-driven user flows). Naming the specific test tools and the `unit-test-writer`/
+  `e2e-test-writer` subagent delegation is recorded as an Assumption, consistent with this spec's
+  established precedent (Zod, URL encoding scheme, hook/subfolder names) of naming concrete
+  implementation choices as deliberate, narrow hints rather than a "no implementation details"
+  violation — the success criteria (SC-023/SC-024) themselves stay outcome-focused (tests exist
+  and fail on regression), not tool-specific. All checklist items still pass after the update.

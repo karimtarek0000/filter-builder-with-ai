@@ -9,14 +9,14 @@ description: "Task list for Advanced Filter Builder"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/filter-url-schema.md, quickstart.md
 
-**Tests**: No test runner is configured in this project (see plan.md → Technical Context → Testing). No test tasks are included; each user story instead references its manual repro steps in [quickstart.md](./quickstart.md), per the constitution's "manual repro step instead" rule.
+**Tests**: Vitest, React Testing Library, and Playwright are now installed and configured (see plan.md → Technical Context → Testing; `npm run test`/`test:watch`/`e2e`). Phases 1-26 below (User Stories 1-18) were generated and completed while no test runner existed, so each of those stories still references its manual repro steps in [quickstart.md](./quickstart.md) only. User Story 19 (Phase 27) adds the automated test tasks (FR-045–FR-048) retroactively covering every one of those stories, per the constitution's Article IX gate now that a runner exists.
 
-**Organization**: Tasks are grouped by user story (spec.md priorities P1–P18) so each story is independently implementable and testable.
+**Organization**: Tasks are grouped by user story (spec.md priorities P1–P19) so each story is independently implementable and testable.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: Maps the task to US1–US18 from spec.md
+- **[Story]**: Maps the task to US1–US19 from spec.md
 - File paths are exact, per plan.md's Project Structure
 
 ## Path Conventions
@@ -49,6 +49,14 @@ spec.md/plan.md picked up a third amendment since Phase 21 was completed: Storie
 - There is no `hooks/` or `components/` subfolder inside `src/features/filter-builder/` — every file (`useConditionRow.ts`, `useFilterUrlSync.ts`, `FilterBuilder.tsx`, `FilterGroup.tsx`, `FilterCondition.tsx`, `ValueInput.tsx`) is still flat at the feature's top level, and there is no per-subfolder `index.ts`.
 - `useConditionRow.ts`'s `handleValueChange` still branches `if (debounced) { setLocalValue(value) } else { onChange(...) }`, and `fieldConfig.ts` still exposes `isDebouncedValueKind` as a `boolean` map (`DEBOUNCE_BY_VALUE_KIND`), not the `debounceMsForValueKind` numeric-delay map FR-042/FR-043 require.
 - `urlState.ts`'s `encodeFilterToParam(root)` does not currently drop a condition whose value is failing validation before encoding, despite this being required by FR-013's 2026-07-28 clarification and documented in [contracts/filter-url-schema.md](./contracts/filter-url-schema.md) → Encoding rule step 1 — a pre-existing gap, unrelated to Stories 15-18 on its own, but one that must be fixed correctly while this function is rewritten to take a `fieldConfig` parameter (T080 below), rather than carried forward.
+
+## Status Note (2026-07-29)
+
+spec.md/plan.md picked up a fourth addition since Phase 26 was completed: a new Story 19 "Trust the feature through automated tests" (FR-045–FR-048, SC-023/SC-024), now that Vitest, React Testing Library, and Playwright are installed and configured (`package.json`'s `test`/`test:watch`/`e2e` scripts, `vitest.config.ts`, `src/test/setup.ts`, `playwright.config.ts`). A codebase check while generating Phase 27 below confirmed no automated coverage exists yet beyond the pre-existing smoke test:
+
+- The only file under `e2e/` is `app.spec.ts` (renders the employee table) — none of `filtering.spec.ts`, `nested-groups.spec.ts`, `url-sharing.spec.ts`, `hire-date.spec.ts`, `validation.spec.ts`, `mobile-layout.spec.ts`, or `clear-all.spec.ts` exist yet.
+- No `*.test.ts`/`*.test.tsx` file exists anywhere under `src/` — `filterEngine.ts`, `validation.ts`, `urlState.ts`, `src/data/employeeFieldConfig.ts`, `src/data/format.ts`, `src/hooks/useDebouncedCommit.ts`, and every hook/component under `src/features/filter-builder/hooks/`/`components/` are all currently untested.
+- Per plan.md's Assumptions and this project's convention, unit/component tests are authored via the `unit-test-writer` subagent and end-to-end tests via the `e2e-test-writer` subagent — tasks below note this explicitly since it changes who/what performs the task, not just what file it touches.
 
 ---
 
@@ -456,6 +464,47 @@ spec.md/plan.md picked up a third amendment since Phase 21 was completed: Storie
 
 ---
 
+## Phase 27: User Story 19 - Trust the feature through automated tests (Priority: P19)
+
+**Goal**: The filter-matching engine, condition-value validation, and URL encode/decode each have unit tests run without rendering any component; the condition row, filter group, top-level filter builder, and both debounce/URL-sync hooks each have component tests exercising rendered output and simulated interaction; every user story (US1-US18) has at least one automated test tracing back to its acceptance scenarios; none of this introduces a test-only code path into the feature's runtime code.
+
+**Independent Test**: Run `npm run test` and confirm it exercises the filter engine, validation, URL encode/decode, and the condition/group components and hooks in isolation; separately, run `npm run e2e` and confirm it drives a real browser through the filtering, grouping, nesting, sharing, clearing, and validation flows against the running app — see [quickstart.md](./quickstart.md) → Story 19.
+
+### Implementation for User Story 19
+
+- [X] T099 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/filterEngine.test.ts` covering `evaluateNode` (per-operator single-condition match/no-match, AND/OR group evaluation, evaluation across multiple sibling nested groups, vacuous match on an empty group and on an undefined condition value), `matchCount`, `describeFilter` (sentence for a flat group and for a root with one or more nested groups), `describeMatchCount` (pluralization), and `createEmptyFilter` (shape) — implements FR-045, FR-003, FR-006, FR-007, FR-012, FR-018, FR-032, FR-036 (depends on the existing `filterEngine.ts`)
+- [X] T100 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/validation.test.ts` covering `validateConditionValue` for every field/operator's Zod schema (valid and invalid `salary`, `hireDate` day/month/year bounds, `name`, `country`), and confirming an undefined value is treated as vacuously valid — implements FR-045, FR-021, FR-022 (depends on the existing `validation.ts`)
+- [X] T101 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/urlState.test.ts` covering `encodeFilterToParam`/`decodeFilterFromParam` round-tripping a valid flat tree and a tree with multiple nested groups, confirming a condition currently failing validation is dropped before encoding (FR-013), and confirming a malformed, undecodable, or unrecognized field/operator URL value decodes to a null/empty result (FR-014/FR-015) — implements FR-045, FR-013, FR-014, FR-015 (depends on the existing `urlState.ts`)
+- [X] T102 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/data/employeeFieldConfig.test.ts` covering each field's operator list, `describe`, `match`, and Zod `schema`, plus `hireDate`'s independent day/month/year slicing — implements FR-045 (data-model.md → Automated test coverage) (depends on the existing `employeeFieldConfig.ts`)
+- [X] T103 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/data/format.test.ts` covering `formatSalary` (thousands separator, no decimals, no currency symbol) and `formatHireDate` ("D MMM YYYY") output shape — implements FR-045, FR-019, FR-020 (depends on the existing `format.ts`)
+- [X] T104 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/hooks/useDebouncedCommit.test.ts` using `renderHook` and `vi.useFakeTimers()`, covering commit-after-pause, several rapid changes before the delay collapsing to one final commit, immediate local-value display while pending, external value re-sync, and no dangling timer after unmount — implements FR-046, FR-027, FR-028, FR-034 (depends on the existing `useDebouncedCommit.ts`)
+- [X] T105 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/hooks/useFilterUrlSync.test.tsx` covering initial decode from a seeded URL, `history.replaceState` (not `pushState`) called after a tree change, and a malformed URL falling back to an empty filter — implements FR-046, FR-013, FR-014, FR-015 (depends on the existing `useFilterUrlSync.ts`)
+- [X] T106 [P] [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/hooks/useConditionRow.test.tsx` covering field-change reset (operator and value), `hireDate` operator-change value reset, and debounced-vs-immediate value-commit paths using fake timers — implements FR-046, FR-005, FR-025, FR-029, FR-030, FR-043 (depends on the existing `useConditionRow.ts`)
+- [X] T107 [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/components/FilterCondition.test.tsx` covering the value-input control swapping on field/operator change and the remove control — implements FR-046 (depends on T106, the existing `FilterCondition.tsx`)
+- [X] T108 [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/components/FilterGroup.test.tsx` covering the AND/OR toggle, add/remove condition, add/remove nested group, and the add-group control's absence inside a nested group — implements FR-046, FR-006, FR-007, FR-008, FR-009, FR-010 (depends on T107, the existing `FilterGroup.tsx`)
+- [X] T109 [US19] Delegate to the `unit-test-writer` subagent: write `src/features/filter-builder/components/FilterBuilder.test.tsx` using a throwaway non-Employee `FilterFieldConfig`/dataset pair, covering initial render and Clear All resetting to an empty root group (including the no-op case when already empty) — implements FR-046, FR-036, FR-037, FR-039 (depends on T108, the existing `FilterBuilder.tsx`)
+- [X] T110 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/filtering.spec.ts` covering User Story 1 (single condition narrows the table and count, field-change reset, boolean operator hides the value input, debounced typing) and User Story 2 (second condition in the same group, AND/OR toggle, remove condition) — implements FR-047 (US1, US2)
+- [X] T111 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/nested-groups.spec.ts` covering User Story 3: add a nested group, add a second independent nested group alongside it, confirm "add group" is unavailable inside a nested group, and confirm the plain-language sentence reflects the combined AND/OR logic — implements FR-047 (US3)
+- [X] T112 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/url-sharing.spec.ts` covering User Story 4: the URL updates after a filter edit via `replaceState`, a fresh page load restores the same tree/sentence/rows from a seeded URL, and a malformed/unrecognized URL falls back to an empty filter with no error shown — implements FR-047 (US4)
+- [X] T113 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/hire-date.spec.ts` covering User Story 5: `hireDate` "month is", "year is", and "day is" conditions each narrow independently, and combining two `hireDate` conditions in one AND group — implements FR-047 (US5)
+- [X] T114 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/validation.spec.ts` covering User Story 6: an inline error appears for a non-numeric `salary`/invalid `hireDate` year value, the table treats the condition as unset while the error is visible, and the error clears once the value is corrected — implements FR-047 (US6)
+- [X] T115 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/mobile-layout.spec.ts` covering User Story 8: at a mobile-width viewport a condition's remove control renders outside the field/operator/value row and stays reachable with one tap, removal still works, and the desktop-width layout keeps its existing inline placement — implements FR-047 (US8)
+- [X] T116 [P] [US19] Delegate to the `e2e-test-writer` subagent: write `e2e/clear-all.spec.ts` covering User Story 14: build a filter with multiple root-level conditions and at least one nested group, click Clear All, confirm a full reset (rows, count, sentence, URL) with no confirmation step, and confirm clicking Clear All again on an already-empty filter is a no-op — implements FR-047 (US14)
+- [X] T117 [US19] Validate per [quickstart.md](./quickstart.md) → Story 19: run `npm run test` and confirm it passes, covering `filterEngine.ts`/`validation.ts`/`urlState.ts`/`employeeFieldConfig.ts`/`format.ts` and every hook/component under `hooks/`/`components/` in both `filter-builder/` and `src/hooks/` (Scenarios 1-3, FR-045/FR-046); run `npm run e2e` and confirm all eight specs (the seven new ones plus the existing `app.spec.ts` smoke test) pass against a real browser (Scenarios 4-5, FR-047); deliberately break a previously-specified behavior (e.g. comment out the vacuous-match check for an undefined condition value in `evaluateNode`), re-run `npm run test`, confirm the corresponding test fails and identifies the regressed behavior, then revert the change (Scenario 6, SC-024) (depends on T099-T116)
+
+**Checkpoint**: All nineteen user stories are independently functional, and every one of them (US1-US18) has at least one automated test tracing back to its acceptance scenarios.
+
+---
+
+## Phase 28: Polish & Cross-Cutting Concerns (User Story 19)
+
+**Purpose**: Repo-wide quality gates after automated test coverage is added.
+
+- [X] T118 [P] Run `npm run build` (type-check + production build), `npm run lint`, `npm run test`, and `npm run e2e` — all four must pass per CLAUDE.md's and quickstart.md's regression-watch quality gates
+- [X] T119 Re-run the complete [quickstart.md](./quickstart.md) walkthrough end-to-end — all 19 stories, the accessibility spot-check, the zero-match edge case, and the back-button regression watch — and confirm every expectation still holds
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -486,6 +535,8 @@ spec.md/plan.md picked up a third amendment since Phase 21 was completed: Storie
 - **User Story 17 (Phase 24)**: Depends on User Story 16 (Phase 23) — `useConditionRow.ts` and `fieldConfig.ts` must already be at their `hooks/`/top-level post-move locations
 - **User Story 18 (Phase 25)**: Depends on User Story 16 (Phase 23) — the `hooks/`/`components/` subfolders must exist before they can get entry files; independent of Phase 24's own changes
 - **Polish (Phase 26)**: Depends on Phases 22-25
+- **User Story 19 (Phase 27)**: Depends on the completed, generalized implementations of every prior phase (Phases 2-26) — it writes tests against the current shape of `filterEngine.ts`, `validation.ts`, `urlState.ts`, `src/data/employeeFieldConfig.ts`/`format.ts`, `src/hooks/useDebouncedCommit.ts`, and every hook/component under `filter-builder/hooks/`/`components/`
+- **Polish (Phase 28)**: Depends on Phase 27
 
 Unlike a typical backend feature, US2–US7 here are not fully independent of US1's files — they extend the same small set of components rather than adding disjoint ones, per the plan's single-page, single-module design (data-model.md, research.md §1). Each story is still independently *testable* per its Independent Test above. The same is true of US9–US13: each is a maintainability refactor of files already built by US1/US6/US7, not a disjoint file set. Phases 18-20 follow the same pattern: Phase 18 revises `FilterGroup.tsx`'s existing gating rule and finally implements the long-flagged `describeFilter` gap, Phase 19 adds one function plus one button to already-existing files, and Phase 20 only adds `aria-label` attributes to controls that already exist.
 
@@ -512,6 +563,7 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US16: T088 needs T085 (everything being moved must already be generic); T089 needs T088
 - US17: T090 needs T088; T091 needs T090; T092 needs T091
 - US18: T093 and T094 each need T088 (parallel with each other); T095 needs T093 and T094; T096 needs T095
+- US19: T099-T106 each need only their own already-existing target file, so all eight run in parallel; T107 needs T106 (both touch `useConditionRow`-adjacent behavior conceptually, and component tests are easiest authored condition-row-first); T108 needs T107; T109 needs T108; T110-T116 each need only the fully-built app (Phases 2-26 complete), so all seven run in parallel; T117 needs T099-T116
 
 ### Parallel Opportunities
 
@@ -528,6 +580,8 @@ Unlike a typical backend feature, US2–US7 here are not fully independent of US
 - US15: T078 (`filterEngine.ts`) and T079 (`validation.ts`) touch different files and can run in parallel once T077 lands; T082 (`EmployeeTable.tsx`/`format.ts` move) is independent of T077-T081 and can run any time before T086
 - US18: T093 (`hooks/index.ts`) and T094 (`components/index.ts`) touch different files and can run in parallel once T088 lands
 - Polish (Phase 26): T097 is marked [P] (independent of T098)
+- US19: T099-T106 are all marked [P] (eight independent unit/hook-test files); T110-T116 are all marked [P] (seven independent e2e specs, each a different flow); T107-T109 are not marked [P] since component tests for `FilterCondition`/`FilterGroup`/`FilterBuilder` are most reliably written in that nesting order (see research.md §28's co-location rationale)
+- Polish (Phase 28): T118 is marked [P] (a quality-gate check independent of T119's manual walkthrough)
 
 ---
 
@@ -589,6 +643,29 @@ Task: "Create src/features/filter-builder/hooks/index.ts re-exporting useConditi
 Task: "Create src/features/filter-builder/components/index.ts re-exporting FilterBuilder, FilterGroup, FilterCondition, ValueInput"
 ```
 
+## Parallel Example: User Story 19
+
+```bash
+Task: "Write src/features/filter-builder/filterEngine.test.ts (unit-test-writer)"
+Task: "Write src/features/filter-builder/validation.test.ts (unit-test-writer)"
+Task: "Write src/features/filter-builder/urlState.test.ts (unit-test-writer)"
+Task: "Write src/data/employeeFieldConfig.test.ts (unit-test-writer)"
+Task: "Write src/data/format.test.ts (unit-test-writer)"
+Task: "Write src/hooks/useDebouncedCommit.test.ts (unit-test-writer)"
+Task: "Write src/features/filter-builder/hooks/useFilterUrlSync.test.tsx (unit-test-writer)"
+Task: "Write src/features/filter-builder/hooks/useConditionRow.test.tsx (unit-test-writer)"
+```
+
+```bash
+Task: "Write e2e/filtering.spec.ts (e2e-test-writer)"
+Task: "Write e2e/nested-groups.spec.ts (e2e-test-writer)"
+Task: "Write e2e/url-sharing.spec.ts (e2e-test-writer)"
+Task: "Write e2e/hire-date.spec.ts (e2e-test-writer)"
+Task: "Write e2e/validation.spec.ts (e2e-test-writer)"
+Task: "Write e2e/mobile-layout.spec.ts (e2e-test-writer)"
+Task: "Write e2e/clear-all.spec.ts (e2e-test-writer)"
+```
+
 ---
 
 ## Implementation Strategy
@@ -629,15 +706,18 @@ Task: "Create src/features/filter-builder/components/index.ts re-exporting Filte
 24. User Story 17 → replace `useConditionRow`'s debounced/immediate branch with one wrapped `useDebouncedCommit` call configured by a per-`valueKind` delay → validate no regression to debounce timing → demo (code-review only)
 25. User Story 18 → add `hooks/index.ts` and `components/index.ts`, route every cross-subfolder import through them → validate no direct nested-file imports remain → demo (code-review only)
 26. Polish → build/lint clean, full quickstart pass (Stories 1-18 + accessibility)
+27. User Story 19 → add unit tests for the engine/validation/URL/config/format modules and the debounce/URL-sync hooks, component tests for the condition row/filter group/filter builder, and e2e specs for Stories 1-6, 8, 14 → validate `npm run test`/`npm run e2e` pass and a deliberate regression is caught → demo (test-coverage only, no new user-facing behavior)
+28. Polish → build/lint/test/e2e all clean, full quickstart pass (Stories 1-19 + accessibility)
 
 ---
 
 ## Notes
 
 - [P] tasks touch different files with no dependency on an incomplete task
-- [Story] labels map tasks to spec.md's US1–US18 for traceability
-- No test runner is configured; every story's independent test is a manual quickstart.md walkthrough instead of automated tests
+- [Story] labels map tasks to spec.md's US1–US19 for traceability
+- Phases 1-26 (User Stories 1-18) predate this project's test runner; their own "Independent Test" stayed a manual quickstart.md walkthrough. Phase 27 (User Story 19) retroactively adds automated coverage for all of them, per FR-045–FR-048
 - Stories 9-13 and 15-18 are read-the-code / audit-only user stories — their "Independent Test" is a code review plus a browser regression check, not new user-visible behavior
+- Story 19's unit/component tests are authored via the `unit-test-writer` subagent and its end-to-end specs via the `e2e-test-writer` subagent, per plan.md's Assumptions and this project's testing convention (CLAUDE.md)
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently before moving on
 - T053's flagged question about the missing `describeFilter`/FR-012 sentence was never resolved during Phases 13-17 (confirmed still missing when generating Phase 18) — Phase 18 (T065) now implements it directly, since Story 3 (revised)'s Scenario 4 makes it a hard blocker rather than an optional follow-up

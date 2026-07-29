@@ -38,6 +38,10 @@
 
 - Q: Should reusability of the filter builder for other tables be proven with a second live example table in the app, or only through the generalized component/engine API shape? → A: Architecture-only — generalize the engine, types, and components to accept a caller-supplied field configuration and dataset; the app continues to wire only the Employee table through it for this update. No second example table is built.
 
+### Session 2026-07-29
+
+- Q: Automated test coverage should be added for this feature using the project's existing Vitest, React Testing Library, and Playwright setup. Should this cover every previously-specified user story (US1-US18), or only a representative subset? → A: Every user story gets at least one automated test tracing back to its acceptance scenarios — unit/component tests for engine, hook, and component-level behavior; end-to-end tests for full user-facing flows (filtering, grouping, nesting, URL share/restore, Clear All, validation, mobile layout).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Filter the table with a single rule (Priority: P1)
@@ -330,6 +334,25 @@ A developer working inside or outside the filter-builder feature wants to pull i
 
 ---
 
+### User Story 19 - Trust the feature through automated tests (Priority: P19)
+
+A developer maintaining the filter builder wants an automated test suite that proves the feature's specified behavior keeps working, instead of relying on the manual quickstart walkthrough alone before every change.
+
+**Why this priority**: This is a verification layer over all previously-specified behavior (User Stories 1-18). It adds no new user-facing capability, but without it, every future edit to the feature (or to the generalized engine other tables will depend on, per User Story 15) risks a silent regression that a manual walkthrough might not catch.
+
+**Independent Test**: Run the project's unit test command and confirm it exercises the filter engine, validation, URL encode/decode, and the condition/group components and hooks in isolation; separately, run the project's e2e test command and confirm it drives a real browser through the filtering, grouping, nesting, sharing, clearing, and validation flows against the running app.
+
+**Acceptance Scenarios**:
+
+1. **Given** the filter-matching engine (root/nested group AND/OR evaluation, per-field operators, `hireDate` day/month/year component matching), **When** the unit test suite runs, **Then** it verifies matching results for single conditions, combined groups, nested groups, and the zero-match case, without rendering any component.
+2. **Given** the condition-value validation rules (FR-021/FR-022) and the URL encode/decode round-trip (FR-013-FR-015), **When** the unit test suite runs, **Then** it verifies valid and invalid values are classified correctly, and that a valid filter tree round-trips through encoding and decoding while a malformed/unrecognized URL value falls back to an empty filter.
+3. **Given** the condition row, filter group, and top-level filter builder components, **When** the unit/component test suite runs, **Then** it verifies field-change resets, operator-change resets, debounced value commits, group AND/OR toggling, add/remove condition, add/remove group, and Clear All, using rendered components and simulated user interaction rather than only the underlying functions.
+4. **Given** the running application, **When** the end-to-end test suite executes User Story 1's flow (add a condition, see the table and count narrow), **Then** it passes against a real browser without needing any test-only code path in the app itself.
+5. **Given** the running application, **When** the end-to-end test suite executes the nested-group (User Story 3), URL share/restore (User Story 4), and Clear All (User Story 14) flows, **Then** each passes independently, confirming the combined filter logic, a reloaded shared URL, and a full reset all behave as specified.
+6. **Given** a future change that breaks any previously-specified behavior covered by a test, **When** the test suite runs, **Then** it fails and identifies which specified behavior regressed, rather than the regression surfacing only through manual inspection.
+
+---
+
 ### Edge Cases
 
 - A `hireDate` condition using "day is" only narrows by day-of-month; it does not require or infer a month or year, so "day is 31" correctly matches employees hired on the 31st of any month that has one.
@@ -349,6 +372,8 @@ A developer working inside or outside the filter-builder feature wants to pull i
 - Relocating the debounce hook to a shared location does not change its delay-then-commit contract: a value changed and then changed again before the delay elapses still results in only the final value being committed, with no dangling timer left after the component unmounts.
 - A caller supplying its own field configuration is responsible for defining every field's valid operators and value kinds; the generalized engine does not fall back to Employee-specific defaults for a field it doesn't recognize.
 - Generalizing the engine and components to accept a caller-supplied field configuration does not change the Employee table's own filtering, validation, URL-sync, or display behavior — it only moves the Employee-specific configuration from being assumed internally to being passed in from outside the feature.
+- Adding automated test coverage (User Story 19) does not change any previously-specified user-facing behavior (FR-001 through FR-044) — it only verifies that behavior; a test failure signals a regression to fix, not a new requirement to design around.
+- Automated tests do not introduce any test-only code path, flag, or hook into the feature's runtime code — engine, hook, and component tests exercise the same exported functions/components the app itself uses, and end-to-end tests drive the real running app exactly as a user would.
 
 ## Requirements *(mandatory)*
 
@@ -398,6 +423,10 @@ A developer working inside or outside the filter-builder feature wants to pull i
 - **FR-042**: The shared debounce mechanism (previously FR-027/FR-034) MUST be exposed as a single, genuinely generic hook — not named or shaped around "committing a filter condition value" — usable to delay invoking any caller-supplied change callback regardless of the kind of data being changed.
 - **FR-043**: `useConditionRow`'s value-change handling MUST call the shared debounce hook's wrapped change handler for every value kind, debounced and non-debounced alike; the delay for each kind (a short delay for free-text/numeric kinds, no delay for selection-based kinds) MUST be supplied as configuration to that one wrapped handler, not implemented as a separate if/else branch inside `useConditionRow` choosing between calling the hook and calling `onChange` directly.
 - **FR-044**: Every subfolder introduced inside the `filter-builder` feature (per FR-041) MUST expose its own single entry file; any file — inside or outside the feature — that needs more than one item from a given subfolder MUST import all of them through that subfolder's single entry file, not through multiple direct file imports.
+- **FR-045**: The filter-matching engine, condition-value validation, and URL tree encode/decode (FR-003, FR-006, FR-007, FR-013 through FR-015, FR-018, FR-021, FR-022) MUST each have automated unit tests covering their specified behavior, run without rendering any component.
+- **FR-046**: The condition row, filter group, and top-level filter builder components/hooks (field-change reset, operator-change reset, debounced value commit, group AND/OR toggle, add/remove condition, add/remove group, Clear All — FR-005, FR-006, FR-009, FR-010, FR-025, FR-036, FR-037) MUST each have automated component tests that render the component and simulate user interaction, rather than testing only the underlying functions.
+- **FR-047**: Every user story's independent test (US1 through US18) MUST have at least one corresponding automated end-to-end test that drives the running application through a real browser, covering, at minimum: single-condition filtering, multi-condition AND/OR combination, nested-group logic, URL share/restore/fallback, `hireDate` component filtering, inline validation errors, mobile remove-control placement, and Clear All.
+- **FR-048**: Automated tests (unit, component, and end-to-end) MUST exercise the feature's existing exported functions, components, and running application exactly as consumed by the app today — no test-only code path, flag, or hook may be added to the feature's runtime code to make it testable.
 
 ### Key Entities
 
@@ -432,6 +461,8 @@ A developer working inside or outside the filter-builder feature wants to pull i
 - **SC-020**: A developer opening the `filter-builder` folder can find any hook or component within seconds, because each lives under a subfolder named for its kind.
 - **SC-021**: A developer can identify the entire debounce-or-commit decision for a condition's value from one wrapped handler call in `useConditionRow`, without reading a local if/else branch.
 - **SC-022**: Any file that needs more than one hook or more than one component from the `filter-builder` feature can get all of them via a single import statement per kind.
+- **SC-023**: Every previously-specified user story (US1-US18) has at least one automated test tracing back to its acceptance scenarios, so a developer can confirm the story still works by running the test suite instead of repeating the manual quickstart walkthrough.
+- **SC-024**: A developer who introduces a regression to any tested behavior sees the corresponding test fail, identifying which specified behavior broke, before the change reaches manual or user review.
 
 ## Assumptions
 
@@ -462,3 +493,5 @@ A developer working inside or outside the filter-builder feature wants to pull i
 - Reusability for this update (User Story 15, FR-039/FR-040) is architecture-only, per the user's explicit choice: the engine, types, and components are generalized to accept a caller-supplied field configuration and dataset, but no second example table is built in this update — the Employee table remains the only live consumer, now wired through the generalized shape rather than through internal, hardcoded Employee assumptions.
 - The exact subfolder(s) for non-component, non-hook logic (the engine, validation, URL (de)serialization, formatting, and field configuration) are a planning-phase decision; this spec only requires the `hooks` and `components` subfolders explicitly named by the user (FR-041), each with its own entry file (FR-044). Grouping the remaining files is left to the plan so it can follow whatever grouping best fits the generalized (non-Employee-specific) engine.
 - Renaming the shared debounce hook to a plainly generic name (FR-042) and having `useConditionRow` route every value kind through one wrapped `onChange` call (FR-043) changes no previously-specified debounce behavior (FR-011, FR-025, FR-027, FR-028, SC-002, SC-010, SC-012, SC-013) — this is a naming and call-site simplification only.
+- The project's test tooling (Vitest, React Testing Library, Playwright) is already installed and configured (`vitest.config.ts`, `src/test/setup.ts`, `playwright.config.ts`, `e2e/`) as of this update, so User Story 19 adds test coverage rather than test infrastructure; `npm run test`/`test:watch` and `npm run e2e` are the commands the suite runs under.
+- Consistent with this project's convention of delegating test-writing to its dedicated subagents, unit/component tests are authored via the `unit-test-writer` subagent and end-to-end tests via the `e2e-test-writer` subagent; this is a workflow detail for the planning/implementation phases, not a user-facing requirement.
