@@ -1,6 +1,6 @@
 # I built this feature from scratch with Claude Code + Spec-kit, skills, subagents and MCPs
 
-> `filter-builder-advanced` feature in this repo was designed and implemented end-to-end with [Claude Code](https://claude.com/claude-code), using **spec-kit** for spec-driven planning, **Skills** and **Subagents** for focused implementation/testing steps, and **MCP servers** for live docs and browser-driven verification.
+> `filter-builder-advanced` feature in this repo was designed and implemented end-to-end with **Claude Code**, using **spec-kit** for spec-driven planning, **Skills** and **Subagents** for focused implementation/testing steps, and **MCP servers** for live docs and browser-driven verification.
 
 ## Feature: Advanced Filter Builder
 
