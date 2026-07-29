@@ -71,7 +71,7 @@ e2e/                                 # Playwright end-to-end coverage for the fe
     └── decodeFilterParam.ts        # shared helper to decode the URL filter param in tests
 ```
 
-#### Example you can test it from here: [preview](filter-builder-with-ai-pi.vercel.app)
+#### Example you can test it from here: [preview](https://filter-builder-with-ai-pi.vercel.app)
 
 ![alt text](<markdown-images/Screenshot 2026-07-29 at 9.17.28 PM.png>)
 
