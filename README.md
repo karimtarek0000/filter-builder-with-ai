@@ -71,4 +71,4 @@ e2e/                                 # Playwright end-to-end coverage for the fe
     └── decodeFilterParam.ts        # shared helper to decode the URL filter param in tests
 ```
 
-![alt text](<markdown-images/Screenshot 2026-07-29 at 9.13.17 PM.png>)
+![alt text](<markdown-images/Screenshot 2026-07-29 at 9.17.28 PM.png>)
