@@ -93,6 +93,7 @@ Do these in order. Finish each one and stop before the next.
 - `npm run build` passes
 
 Follow the rules in CLAUDE.md for how to work and how to structure the code.
+<<<<<<< HEAD
 
 # Task: Advanced Filter Builder
 
@@ -219,3 +220,5 @@ start the next one.
 
 Before you write code in each step, show me a short plan and wait for
 my approval.
+=======
+>>>>>>> Advanced-Filter-Builder
