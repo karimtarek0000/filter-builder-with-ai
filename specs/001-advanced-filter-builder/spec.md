@@ -34,7 +34,15 @@
 
 - Q: Should the filter builder support accessibility (keyboard use, screen reader labels)? → A: Basic support — every control (add/remove condition, add/remove group, field/operator/value inputs, Clear All) must be usable with the keyboard alone and must have a clear label for screen readers. No spoken/live announcements for dynamic changes (e.g., a new match count or a new inline error) are required.
 
-## User Scenarios & Testing *(mandatory)*
+### Session 2026-07-28 (Amendment 3)
+
+- Q: Should reusability of the filter builder for other tables be proven with a second live example table in the app, or only through the generalized component/engine API shape? → A: Architecture-only — generalize the engine, types, and components to accept a caller-supplied field configuration and dataset; the app continues to wire only the Employee table through it for this update. No second example table is built.
+
+### Session 2026-07-29
+
+- Q: Automated test coverage should be added for this feature using the project's existing Vitest, React Testing Library, and Playwright setup. Should this cover every previously-specified user story (US1-US18), or only a representative subset? → A: Every user story gets at least one automated test tracing back to its acceptance scenarios — unit/component tests for engine, hook, and component-level behavior; end-to-end tests for full user-facing flows (filtering, grouping, nesting, URL share/restore, Clear All, validation, mobile layout).
+
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Filter the table with a single rule (Priority: P1)
 
@@ -262,6 +270,89 @@ A user with a complex filter — several conditions and one or more nested group
 
 ---
 
+### User Story 15 - Plug the filter builder into a different table (Priority: P15)
+
+A developer building an unrelated table elsewhere in the app wants to reuse the filter builder's group/condition editor, its filter-evaluation engine, and its URL-sync behavior against that table's own fields and rows, by supplying that table's field configuration and dataset — without editing any Employee-specific code inside the feature.
+
+**Why this priority**: This extends the reusability groundwork already laid by Stories 12-13 (single entry point, relocated generic debounce hook) to the feature's core engine and components themselves — the last piece needed for the feature to genuinely serve "any table," not just Employee.
+
+**Independent Test**: Using a throwaway table setup with different field names, types, and operators than the Employee table, wire the exported filter-builder component/engine to that table's own field configuration and dataset, and confirm filtering, grouping, nesting, and URL sync all work using only the supplied configuration — with no code inside the feature referencing Employee-specific fields.
+
+**Acceptance Scenarios**:
+
+1. **Given** a table with a different set of fields, operators, and value kinds than the Employee table, **When** a developer supplies a field configuration describing those fields, **Then** the same filter-builder component and engine evaluate filters against that table's rows using only the supplied configuration, with no modification to the feature's internal engine or component code.
+2. **Given** the filter-builder feature's internal engine, condition/group components, and validation, **When** a developer inspects them, **Then** none of them hardcode Employee-specific field names, operator lists, or value-kind mappings (country codes, salary rules, hireDate day/month/year) — all of that lives in the caller-supplied configuration.
+3. **Given** the existing Employee table usage of the filter builder, **When** the feature is generalized, **Then** the Employee table's own filter behavior (FR-001 through FR-038) continues to work exactly as before, driven by an Employee-specific field configuration now passed in from outside the feature's internal engine/components.
+
+---
+
+### User Story 16 - Organize feature files by kind (Priority: P16)
+
+A developer opening the filter-builder feature wants files grouped by what kind of thing they are — hooks, components, engine/utility logic — rather than mixed together in one flat folder, so they can predict where a new file of a given kind belongs.
+
+**Why this priority**: This refines the maintainability work of Stories 9-13 by extending the same organizing principle to the whole feature's folder layout. It changes no user-observable behavior.
+
+**Independent Test**: Open the filter-builder feature folder and confirm every hook file lives under a `hooks` subfolder, every component file lives under a `components` subfolder, and the feature's single entry file remains at the top level.
+
+**Acceptance Scenarios**:
+
+1. **Given** the filter-builder feature folder, **When** a developer looks for a hook, **Then** every hook file is located inside a `hooks` subfolder.
+2. **Given** the filter-builder feature folder, **When** a developer looks for a component, **Then** every component file is located inside a `components` subfolder.
+3. **Given** the reorganization into subfolders, **When** existing usages and imports are checked, **Then** all previously-specified behavior continues to work unchanged — only import paths are affected.
+
+---
+
+### User Story 17 - Commit debounced edits through one wrapped handler (Priority: P17)
+
+A developer maintaining `useConditionRow` wants the "debounce or commit immediately" decision to happen inside a single, plainly-named, generic debounce hook wrapped around `onChange`, so `useConditionRow` itself no longer needs its own branch choosing between calling that hook and calling `onChange` directly.
+
+**Why this priority**: This builds on Story 9's relocation of the debounce mechanism, simplifying the consuming call site further so per-field debounce logic lives in one generic place instead of being partly re-decided at each call site.
+
+**Independent Test**: Read `useConditionRow`'s value-change handling and confirm it routes every value kind — debounced and non-debounced alike — through one wrapped-`onChange` call, with the delay for each kind supplied as configuration rather than chosen by an if/else written inside `useConditionRow`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a debounced value kind (`name`, `salary`, `hireDate` day/year), **When** the user types, **Then** the value is applied through the same single wrapped-`onChange` call used for every value kind, with the delay owned entirely by the shared hook.
+2. **Given** a non-debounced value kind (`country`, `isActive`, `hireDate` month), **When** the user changes the value, **Then** the same wrapped-`onChange` call commits immediately, because the shared hook is configured with no delay for that kind — not because `useConditionRow` special-cased it.
+3. **Given** the previously-specified debounce behavior (FR-025, FR-027), **When** this simplification is applied, **Then** all of it continues to work exactly as before.
+
+---
+
+### User Story 18 - Import each part of the feature through one file per kind (Priority: P18)
+
+A developer working inside or outside the filter-builder feature wants to pull in everything they need from a given kind of file (all the hooks they use, all the components they use) with a single import statement, instead of adding a separate import line per file.
+
+**Why this priority**: This extends the single-entry-point principle already established for the whole feature (Story 12, FR-033) down to each subfolder introduced by Story 16, so the folder reorganization doesn't reintroduce scattered deep imports.
+
+**Independent Test**: Pick any file, inside or outside the feature, that uses more than one hook or more than one component from the filter-builder feature, and confirm it does so via a single import statement per kind, referencing that subfolder's own entry file rather than each file individually.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file that needs more than one hook from the filter-builder feature, **When** a developer writes its imports, **Then** all of those hooks are imported through the `hooks` subfolder's single entry file, in one import statement.
+2. **Given** a file that needs more than one component from the filter-builder feature, **When** a developer writes its imports, **Then** all of those components are imported through the `components` subfolder's single entry file, in one import statement.
+3. **Given** the feature's existing single entry file (FR-033), **When** a developer checks what it re-exports, **Then** it in turn imports from each subfolder's own entry file rather than reaching into individual files nested inside those subfolders.
+
+---
+
+### User Story 19 - Trust the feature through automated tests (Priority: P19)
+
+A developer maintaining the filter builder wants an automated test suite that proves the feature's specified behavior keeps working, instead of relying on the manual quickstart walkthrough alone before every change.
+
+**Why this priority**: This is a verification layer over all previously-specified behavior (User Stories 1-18). It adds no new user-facing capability, but without it, every future edit to the feature (or to the generalized engine other tables will depend on, per User Story 15) risks a silent regression that a manual walkthrough might not catch.
+
+**Independent Test**: Run the project's unit test command and confirm it exercises the filter engine, validation, URL encode/decode, and the condition/group components and hooks in isolation; separately, run the project's e2e test command and confirm it drives a real browser through the filtering, grouping, nesting, sharing, clearing, and validation flows against the running app.
+
+**Acceptance Scenarios**:
+
+1. **Given** the filter-matching engine (root/nested group AND/OR evaluation, per-field operators, `hireDate` day/month/year component matching), **When** the unit test suite runs, **Then** it verifies matching results for single conditions, combined groups, nested groups, and the zero-match case, without rendering any component.
+2. **Given** the condition-value validation rules (FR-021/FR-022) and the URL encode/decode round-trip (FR-013-FR-015), **When** the unit test suite runs, **Then** it verifies valid and invalid values are classified correctly, and that a valid filter tree round-trips through encoding and decoding while a malformed/unrecognized URL value falls back to an empty filter.
+3. **Given** the condition row, filter group, and top-level filter builder components, **When** the unit/component test suite runs, **Then** it verifies field-change resets, operator-change resets, debounced value commits, group AND/OR toggling, add/remove condition, add/remove group, and Clear All, using rendered components and simulated user interaction rather than only the underlying functions.
+4. **Given** the running application, **When** the end-to-end test suite executes User Story 1's flow (add a condition, see the table and count narrow), **Then** it passes against a real browser without needing any test-only code path in the app itself.
+5. **Given** the running application, **When** the end-to-end test suite executes the nested-group (User Story 3), URL share/restore (User Story 4), and Clear All (User Story 14) flows, **Then** each passes independently, confirming the combined filter logic, a reloaded shared URL, and a full reset all behave as specified.
+6. **Given** a future change that breaks any previously-specified behavior covered by a test, **When** the test suite runs, **Then** it fails and identifies which specified behavior regressed, rather than the regression surfacing only through manual inspection.
+
+---
+
 ### Edge Cases
 
 - A `hireDate` condition using "day is" only narrows by day-of-month; it does not require or infer a month or year, so "day is 31" correctly matches employees hired on the 31st of any month that has one.
@@ -279,8 +370,12 @@ A user with a complex filter — several conditions and one or more nested group
 - A debounced field's local edit state must re-sync correctly when the underlying condition value changes for a reason other than the user's own typing (e.g., the field is switched, clearing the value); this must not require separate state tracking beyond the single debounce mechanism described in FR-027.
 - A module's entry file (its `index.ts`) never imports from any file inside its own module that in turn imports back from the entry file — the entry file is a one-way export surface, not a re-entry point.
 - Relocating the debounce hook to a shared location does not change its delay-then-commit contract: a value changed and then changed again before the delay elapses still results in only the final value being committed, with no dangling timer left after the component unmounts.
+- A caller supplying its own field configuration is responsible for defining every field's valid operators and value kinds; the generalized engine does not fall back to Employee-specific defaults for a field it doesn't recognize.
+- Generalizing the engine and components to accept a caller-supplied field configuration does not change the Employee table's own filtering, validation, URL-sync, or display behavior — it only moves the Employee-specific configuration from being assumed internally to being passed in from outside the feature.
+- Adding automated test coverage (User Story 19) does not change any previously-specified user-facing behavior (FR-001 through FR-044) — it only verifies that behavior; a test failure signals a regression to fix, not a new requirement to design around.
+- Automated tests do not introduce any test-only code path, flag, or hook into the feature's runtime code — engine, hook, and component tests exercise the same exported functions/components the app itself uses, and end-to-end tests drive the real running app exactly as a user would.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -322,14 +417,25 @@ A user with a complex filter — several conditions and one or more nested group
 - **FR-036**: Users MUST be able to clear the entire filter — every condition in the root group, every nested group, and every condition within each nested group — back to a single empty root group, via one "Clear All" control, with no confirmation step required.
 - **FR-037**: Clearing the filter (FR-036) MUST immediately update the visible rows (showing all employees), the displayed match count, the plain-language sentence, and the URL query parameter to reflect the empty filter. Clicking "Clear All" when the filter is already empty MUST be a no-op with no error.
 - **FR-038**: Every interactive control in the filter builder (add condition, remove condition, add group, remove group, field/operator/value inputs, the group AND/OR toggle, and Clear All) MUST be operable using the keyboard alone, and MUST expose a clear, programmatic label for assistive technology (e.g., a screen reader). Live/spoken announcements of dynamic changes (e.g., an updated match count or a new inline error) are NOT required.
+- **FR-039**: The filter-builder feature's engine (matching logic), condition/group components, and validation MUST operate against a field configuration and dataset supplied by the caller (via props/generics), rather than a hardcoded Employee-specific configuration; no file inside the feature MUST reference Employee-specific field names, operators, or value-kind mappings directly.
+- **FR-040**: The Employee table's own use of the filter builder MUST continue to work exactly as before (FR-001 through FR-038), driven by an Employee-specific field configuration now passed into the generalized component/engine from outside the feature's internal files.
+- **FR-041**: Every file inside the `filter-builder` feature MUST be grouped into a subfolder by its kind: hook files under a `hooks` subfolder and component files under a `components` subfolder; the feature's single entry file MUST remain at the feature's top level.
+- **FR-042**: The shared debounce mechanism (previously FR-027/FR-034) MUST be exposed as a single, genuinely generic hook — not named or shaped around "committing a filter condition value" — usable to delay invoking any caller-supplied change callback regardless of the kind of data being changed.
+- **FR-043**: `useConditionRow`'s value-change handling MUST call the shared debounce hook's wrapped change handler for every value kind, debounced and non-debounced alike; the delay for each kind (a short delay for free-text/numeric kinds, no delay for selection-based kinds) MUST be supplied as configuration to that one wrapped handler, not implemented as a separate if/else branch inside `useConditionRow` choosing between calling the hook and calling `onChange` directly.
+- **FR-044**: Every subfolder introduced inside the `filter-builder` feature (per FR-041) MUST expose its own single entry file; any file — inside or outside the feature — that needs more than one item from a given subfolder MUST import all of them through that subfolder's single entry file, not through multiple direct file imports.
+- **FR-045**: The filter-matching engine, condition-value validation, and URL tree encode/decode (FR-003, FR-006, FR-007, FR-013 through FR-015, FR-018, FR-021, FR-022) MUST each have automated unit tests covering their specified behavior, run without rendering any component.
+- **FR-046**: The condition row, filter group, and top-level filter builder components/hooks (field-change reset, operator-change reset, debounced value commit, group AND/OR toggle, add/remove condition, add/remove group, Clear All — FR-005, FR-006, FR-009, FR-010, FR-025, FR-036, FR-037) MUST each have automated component tests that render the component and simulate user interaction, rather than testing only the underlying functions.
+- **FR-047**: Every user story's independent test (US1 through US18) MUST have at least one corresponding automated end-to-end test that drives the running application through a real browser, covering, at minimum: single-condition filtering, multi-condition AND/OR combination, nested-group logic, URL share/restore/fallback, `hireDate` component filtering, inline validation errors, mobile remove-control placement, and Clear All.
+- **FR-048**: Automated tests (unit, component, and end-to-end) MUST exercise the feature's existing exported functions, components, and running application exactly as consumed by the app today — no test-only code path, flag, or hook may be added to the feature's runtime code to make it testable.
 
 ### Key Entities
 
 - **Employee**: A single row of the dataset, with a unique identifier, a name, a country (one of EG, SA, AE, US, DE), a salary amount, an active/inactive status, and a hire date (calendar date). The dataset is fixed at 40 employees and is not edited by this feature. Salary and hire date are stored as plain numbers/dates; the formatted display (thousands-separated salary, "D MMM YYYY" hire date) is presentational only and does not change the underlying value used for filtering or URL encoding.
 - **Filter Condition**: One rule within the filter tree — a field to check, an operator valid for that field, and a value (absent for the boolean "is true"/"is false" operators). A condition's value MUST satisfy its field's validation constraints before it is applied to the filter.
 - **Filter Group**: A container within the filter tree holding an ordered list of children, each of which is a Filter Condition, or (at the root level only) another Filter Group, combined using either AND or OR logic. The tree is limited to two levels: the root group, and one level of groups nested directly inside it. The root group may hold any number of nested groups; each nested group holds only conditions (no groups of its own).
+- **Field Configuration**: A caller-supplied description of a table's filterable fields — each field's valid operators, each operator's value kind, and any value constraints. The filter-builder engine and components consume this generically; the Employee table's own field configuration is one instance of it, not something the engine assumes.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -351,6 +457,12 @@ A user with a complex filter — several conditions and one or more nested group
 - **SC-016**: Any code outside the `filter-builder` feature that needs something from it can do so with exactly one import path, with no direct imports reaching into the feature's internal files.
 - **SC-017**: A user can discard an entire filter, regardless of how many conditions or nested groups it contains, in a single action, without individually removing each condition or group.
 - **SC-018**: A user relying only on a keyboard (no mouse) can add a condition, add a group, remove a condition or group, edit a value, toggle AND/OR, and use Clear All. A screen reader user can identify the purpose of every control from its announced label.
+- **SC-019**: A developer can wire the filter builder to a table with different fields than Employee by supplying only a field configuration and a dataset, with no changes required inside the feature's engine or component files.
+- **SC-020**: A developer opening the `filter-builder` folder can find any hook or component within seconds, because each lives under a subfolder named for its kind.
+- **SC-021**: A developer can identify the entire debounce-or-commit decision for a condition's value from one wrapped handler call in `useConditionRow`, without reading a local if/else branch.
+- **SC-022**: Any file that needs more than one hook or more than one component from the `filter-builder` feature can get all of them via a single import statement per kind.
+- **SC-023**: Every previously-specified user story (US1-US18) has at least one automated test tracing back to its acceptance scenarios, so a developer can confirm the story still works by running the test suite instead of repeating the manual quickstart walkthrough.
+- **SC-024**: A developer who introduces a regression to any tested behavior sees the corresponding test fail, identifying which specified behavior broke, before the change reaches manual or user review.
 
 ## Assumptions
 
@@ -378,3 +490,8 @@ A user with a complex filter — several conditions and one or more nested group
 - "Clear All" is a single, always-visible control (not one that appears only once a filter exists); it has no separate confirmation dialog, consistent with the low cost of the action (the user can immediately rebuild or, for a shared link, reload the previous URL).
 - The visual distinction required between a nested group and the root (FR-024) applies uniformly to every nested group when more than one exists, so multiple sibling nested groups remain as scannable as a single one (Story 7 / SC-008 extend unchanged to the multi-group case).
 - Suggested enhancements identified while specifying this update, offered for consideration but not required for this update to be considered complete: (1) collapse the condition row's per-field describe/format logic and the value-input lookup map into one place in `fieldConfig` so all field-driven behavior is scannable from a single file; (2) once the module entry-file convention (FR-033) is in place, consider an ESLint rule that flags deep imports into a feature's internal files from outside it, so Article V of the project constitution is enforced automatically rather than by convention alone.
+- Reusability for this update (User Story 15, FR-039/FR-040) is architecture-only, per the user's explicit choice: the engine, types, and components are generalized to accept a caller-supplied field configuration and dataset, but no second example table is built in this update — the Employee table remains the only live consumer, now wired through the generalized shape rather than through internal, hardcoded Employee assumptions.
+- The exact subfolder(s) for non-component, non-hook logic (the engine, validation, URL (de)serialization, formatting, and field configuration) are a planning-phase decision; this spec only requires the `hooks` and `components` subfolders explicitly named by the user (FR-041), each with its own entry file (FR-044). Grouping the remaining files is left to the plan so it can follow whatever grouping best fits the generalized (non-Employee-specific) engine.
+- Renaming the shared debounce hook to a plainly generic name (FR-042) and having `useConditionRow` route every value kind through one wrapped `onChange` call (FR-043) changes no previously-specified debounce behavior (FR-011, FR-025, FR-027, FR-028, SC-002, SC-010, SC-012, SC-013) — this is a naming and call-site simplification only.
+- The project's test tooling (Vitest, React Testing Library, Playwright) is already installed and configured (`vitest.config.ts`, `src/test/setup.ts`, `playwright.config.ts`, `e2e/`) as of this update, so User Story 19 adds test coverage rather than test infrastructure; `npm run test`/`test:watch` and `npm run e2e` are the commands the suite runs under.
+- Consistent with this project's convention of delegating test-writing to its dedicated subagents, unit/component tests are authored via the `unit-test-writer` subagent and end-to-end tests via the `e2e-test-writer` subagent; this is a workflow detail for the planning/implementation phases, not a user-facing requirement.

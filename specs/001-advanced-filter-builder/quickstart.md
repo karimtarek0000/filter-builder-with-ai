@@ -1,6 +1,6 @@
 # Quickstart: Advanced Filter Builder
 
-Validation guide for the feature once implemented. No test runner is configured in this project (see [plan.md](./plan.md) Technical Context → Testing), so this is the manual verification path — run it before calling any implementation task done.
+Validation guide for the feature once implemented. As of User Story 19, this project has Vitest, React Testing Library, and Playwright configured (see [plan.md](./plan.md) Technical Context → Testing) — `npm run test` and `npm run e2e` are the fast way to confirm Stories 1-19 still work. The manual walkthrough below remains useful for exploring a story interactively or verifying something the automated suite doesn't cover (e.g., visual scanning in Story 7).
 
 ## Prerequisites
 
@@ -99,7 +99,7 @@ Validation guide for the feature once implemented. No test runner is configured 
 
 This story is verified by reading code, not by UI interaction — it's a maintainability refactor with no user-visible change.
 
-1. Open `src/features/filter-builder/useDebouncedValue.ts`.
+1. Open `src/hooks/useDebouncedCommit.ts` (relocated from `filter-builder/useDebouncedValue.ts` by Story 13).
 2. **Expect**: the immediate-display / delayed-commit / external-resync behavior is expressed in this one hook, not spread across separate state variables and effects in `FilterCondition.tsx`. (Scenario 1, FR-027)
 3. Re-run Story 1, Scenario 5 (type several digits into a `salary` value quickly) and Story 8 (mobile remove-control placement).
 4. **Expect**: both behave exactly as before this refactor — no regression to typing feedback, delay timing, or non-debounced fields. (Scenario 2, FR-028)
@@ -110,10 +110,10 @@ This story is verified by reading code, not by UI interaction — it's a maintai
 
 This story is verified by reading code, not by UI interaction — it's a maintainability refactor with no user-visible change.
 
-1. Open `src/features/filter-builder/FilterCondition.tsx`.
+1. Open `src/features/filter-builder/components/FilterCondition.tsx`.
 2. **Expect**: the component's body renders from values and handlers returned by one hook call (`useConditionRow`) — no field-change, operator-change, or value-commit logic computed inline, and no `if`/`switch` branching on a field name, operator name, or value kind. (Scenario 1, FR-029)
-3. Open `src/features/filter-builder/ValueInput.tsx`.
-4. **Expect**: the value-kind-to-input-control decision is a lookup map (`inputsByValueKind`), not a conditional; the decision of whether an edit commits immediately or is staged/debounced comes from `fieldConfig.ts`'s `isDebouncedValueKind`, not a hardcoded field/operator name check. (Scenario 2, FR-030/FR-031)
+3. Open `src/features/filter-builder/components/ValueInput.tsx`.
+4. **Expect**: the value-kind-to-input-control decision is a lookup map (`inputsByValueKind`), not a conditional; the decision of whether an edit commits immediately or is staged/debounced comes from `fieldConfig.ts`'s `debounceMsForValueKind`, not a hardcoded field/operator name check. (Scenario 2, FR-030/FR-031)
 5. Re-run Story 1 (Scenarios 1-5), Story 6 (inline validation), and Story 9 (debounce) in the browser.
 6. **Expect**: every behavior works exactly as before this refactor — no regression. (Scenario 3, FR-035)
 
@@ -121,8 +121,8 @@ This story is verified by reading code, not by UI interaction — it's a maintai
 
 This story is verified by reading code, not by UI interaction.
 
-1. Open `src/features/filter-builder/FilterBuilder.tsx`.
-2. **Expect**: every line either renders a child component or calls a hook/function defined elsewhere (`useFilterUrlSync`, `filterEmployees`, `describeMatchCount`) — no inline string formatting (e.g. the pluralized match-count message) or other derivation in the component body. (Scenario 1, FR-032)
+1. Open `src/features/filter-builder/components/FilterBuilder.tsx`.
+2. **Expect**: every line either renders a child component or calls a hook/function defined elsewhere (`useFilterUrlSync`, `evaluateNode`, `describeMatchCount`) — no inline string formatting (e.g. the pluralized match-count message) or other derivation in the component body. (Scenario 1, FR-032)
 3. In the browser, confirm the match-count sentence, table filtering, and URL sync still work exactly as before (re-run Story 1 Scenario 1 and Story 4 Scenario 1). (Scenario 2, FR-035)
 
 ## Story 12 — One entry point per module (P12)
@@ -147,6 +147,50 @@ This story is verified by reading code, not by UI interaction.
 4. With the filter already empty, click "Clear All" again.
 5. **Expect**: no visible change and no error — the table, sentence, and URL remain in their already-empty state. (Scenario 3)
 
+## Story 15 — Plug the filter builder into a different table (P15)
+
+This story is verified by a throwaway wiring check, not a shipped second table (spec.md Amendment 3: architecture-only, no second live example).
+
+1. In a scratch file (not committed), define a small field configuration with different fields/operators/value kinds than Employee — e.g. a `Product` type with `sku` (text) and `inStock` (boolean) — satisfying `FilterFieldConfig<Product>`.
+2. Render `<FilterBuilder fieldConfig={productFieldConfig} data={products}>{(rows) => <pre>{JSON.stringify(rows)}</pre>}</FilterBuilder>`.
+3. **Expect**: adding/removing conditions and groups, toggling AND/OR, and the URL query param all work against `products`/`productFieldConfig` with no edits inside `src/features/filter-builder/`. (Scenario 1, FR-039)
+4. Grep `src/features/filter-builder/` for `Employee`, `country`, `salary`, `isActive`, `hireDate`.
+5. **Expect**: no matches — every Employee-specific reference lives in `src/data/`. (Scenario 2, FR-039)
+6. Re-run Story 1 Scenario 1 and Story 4 Scenario 1 against the real app.
+7. **Expect**: the Employee table's filtering and URL sync still work exactly as before, now driven by `src/data/employeeFieldConfig.ts` passed into `<FilterBuilder>` from `App.tsx`. (Scenario 3, FR-040)
+
+## Story 16 — Feature files organized by kind (P16)
+
+This story is verified by reading the file tree, not by UI interaction.
+
+1. Open `src/features/filter-builder/`.
+2. **Expect**: `useConditionRow.ts` and `useFilterUrlSync.ts` live under `hooks/`; `FilterBuilder.tsx`, `FilterGroup.tsx`, `FilterCondition.tsx`, and `ValueInput.tsx` live under `components/`; the feature's own `index.ts` stays at the top level. (Scenarios 1-2, FR-041)
+3. Re-run Story 1 Scenario 1 and Story 4 Scenario 1.
+4. **Expect**: both work exactly as before — only import paths changed. (Scenario 3, FR-041)
+
+## Story 17 — One wrapped debounce call for every value kind (P17)
+
+1. Open `src/features/filter-builder/hooks/useConditionRow.ts`.
+2. **Expect**: `handleValueChange` and `displayValue` are the same call/value for every `valueKind` — no `if (debounced)`/`else` branch choosing between calling `useDebouncedCommit`'s setter and calling `onChange` directly; the delay passed to `useDebouncedCommit` comes from a `fieldConfig.ts` lookup (`debounceMsForValueKind`). (Scenarios 1-2, FR-042/FR-043)
+3. Re-run Story 1 Scenario 5 (`salary`, debounced) and Story 5 Scenario 1 (`hireDate` month, non-debounced).
+4. **Expect**: both behave exactly as before — debounced fields still wait ~700ms after the last keystroke, selection-based fields still update with no perceptible delay. (Scenario 3, FR-025/FR-027)
+
+## Story 18 — One import per subfolder (P18)
+
+1. Open `src/features/filter-builder/index.ts`.
+2. **Expect**: it imports `FilterBuilder` from `./components` (not `./components/FilterBuilder`), and any types it re-exports come from `./types`. (Scenario 3, FR-044)
+3. Open `src/features/filter-builder/components/FilterCondition.tsx` (or any file using `useConditionRow`).
+4. **Expect**: it imports `useConditionRow` from `../hooks` (the subfolder's entry file), not `../hooks/useConditionRow`. (Scenarios 1-2, FR-044)
+
+## Story 19 — Automated tests (P19)
+
+1. Run `npm run test`.
+2. **Expect**: it passes, exercising `filterEngine.ts`, `validation.ts`, `urlState.ts`, and every hook/component under `hooks/`/`components/` (both `filter-builder/` and `src/hooks/`) via rendered-component interaction, without starting a browser. (Scenarios 1-3, FR-045/FR-046)
+3. Run `npm run e2e`.
+4. **Expect**: it starts the dev server and drives a real browser through single-condition filtering, AND/OR combination, nested groups, URL share/restore/fallback, `hireDate` component filtering, inline validation, mobile remove-control placement, and Clear All — one spec per flow in `e2e/`. (Scenarios 4-5, FR-047)
+5. Deliberately break a previously-specified behavior (e.g., comment out the `undefined`-value vacuous-match check in `evaluateNode`) and re-run `npm run test`.
+6. **Expect**: the corresponding test fails and names the behavior it was checking, rather than the regression only showing up by re-running the manual walkthrough. Revert the change afterward. (Scenario 6, SC-024)
+
 ## Accessibility spot-check (FR-038, SC-018)
 
 1. Using only the keyboard (Tab/Shift+Tab to move focus, Enter/Space to activate, arrow keys inside a `<select>`), add a condition, add a nested group, remove a condition, toggle a group's AND/OR, edit a value, and click Clear All.
@@ -162,4 +206,4 @@ This story is verified by reading code, not by UI interaction.
 ## Regression watch
 
 - After any edit, re-check the browser back button does **not** step through prior filter states (URL updates use `replaceState`, not `pushState` — clarified requirement).
-- Run `npm run build` (type-check + build) and `npm run lint` — both must pass per the constitution's quality gates.
+- Run `npm run build` (type-check + build), `npm run lint`, `npm run test`, and `npm run e2e` — all four must pass per the constitution's quality gates.

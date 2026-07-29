@@ -92,3 +92,31 @@
   live/spoken announcements required for dynamic changes. This was raised as a clarification
   question (the spec previously said nothing about accessibility) and resolved to "basic support"
   rather than left unaddressed. All checklist items still pass after the update.
+- 2026-07-28 update (Amendment 3): added generic reusability (User Story 15, FR-039/FR-040,
+  SC-019), file-by-kind organization into `hooks`/`components` subfolders (User Story 16,
+  FR-041), a simplified single generic debounce wrapper for `useConditionRow` (User Story 17,
+  FR-042/FR-043, SC-021), and per-subfolder public-API imports (User Story 18, FR-044, SC-020,
+  SC-022). The reusability scope had two materially different readings (generalize the API shape
+  only, vs. also build a second live example table) so it was raised as a single clarification via
+  the interactive question tool; the answer ("architecture-only," no second example table) is
+  recorded under "Session 2026-07-28 (Amendment 3)" in Clarifications and as an Assumption. The
+  remaining items (folder-by-kind, debounce-wrapper simplification, per-folder barrel imports) had
+  reasonable defaults and needed no clarification. Continuing this spec's established precedent
+  (FR-027, FR-029-FR-035) of naming specific code constructs (`useConditionRow`, hook/component
+  subfolder names) as deliberate, narrow implementation hints for a maintainability-focused
+  developer story, rather than a gap in "no implementation details." All checklist items still
+  pass after the update.
+- 2026-07-29 update: added automated test coverage for the whole feature (User Story 19,
+  FR-045-FR-048, SC-023/SC-024, a new edge case), using the project's already-installed Vitest,
+  React Testing Library, and Playwright setup (`vitest.config.ts`, `src/test/setup.ts`,
+  `playwright.config.ts`, `e2e/`). No [NEEDS CLARIFICATION] markers were needed: the scope
+  question (cover every existing user story vs. a representative subset) was resolved directly
+  with the user and recorded under "Session 2026-07-29" in Clarifications — every user story
+  (US1-US18) gets at least one traceable automated test, split between unit/component tests
+  (engine, validation, URL encode/decode, hooks, components) and end-to-end tests (full
+  browser-driven user flows). Naming the specific test tools and the `unit-test-writer`/
+  `e2e-test-writer` subagent delegation is recorded as an Assumption, consistent with this spec's
+  established precedent (Zod, URL encoding scheme, hook/subfolder names) of naming concrete
+  implementation choices as deliberate, narrow hints rather than a "no implementation details"
+  violation — the success criteria (SC-023/SC-024) themselves stay outcome-focused (tests exist
+  and fail on regression), not tool-specific. All checklist items still pass after the update.
